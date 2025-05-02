@@ -1,0 +1,14 @@
+{
+  "glyphs": {},
+  "boundingBox": {
+    "xMin": 0,
+    "xMax": 1000,
+    "yMin": -200,
+    "yMax": 800
+  },
+  "resolution": 1000,
+  "underlineThickness": 50,
+  "underlinePosition": -100,
+  "cssFontWeight": "normal",
+  "cssFontStyle": "normal"
+}
