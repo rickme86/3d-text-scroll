@@ -313,7 +313,7 @@ holders.D.renderOrder = 0;
 
 
   const loader = new FontLoader();
-  loader.load('fonts/ArtificBlack.typeface.json', (loadedFont) => {
+  loader.load('/fonts/ArtificBlack.typeface.json', (loadedFont) => {
     font = loadedFont;
     const textMaterials = [
       new THREE.MeshStandardMaterial({ color: 0xffffff }),
