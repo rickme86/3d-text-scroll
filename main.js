@@ -1,6 +1,9 @@
 import * as THREE from 'three';
 import { FontLoader } from 'three/examples/jsm/loaders/FontLoader.js';
 import { TextGeometry } from 'three/examples/jsm/geometries/TextGeometry.js';
+import { createShaderWall } from './shaderWall.js';
+
+
 
 const USE_EXTERNAL_SCROLL = window.self !== window.top;
 document.body.style.overflow = USE_EXTERNAL_SCROLL ? "hidden" : "auto";
@@ -27,6 +30,7 @@ let textMeshBEY, meshD, meshN, meshO; // So you can access them globally
 let font = null;
 let viewSize = 30;
 let textSize = 8; // ✅ Global and responsive
+let shaderUniforms;
 
 init();
 
@@ -53,6 +57,18 @@ function init() {
   const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
   dirLight.position.set(50, 100, 50);
   scene.add(dirLight);
+  
+  shaderUniforms = {
+  u_time: { value: 0 },
+  u_scroll: { value: 0 }
+};
+
+const shaderWall = createShaderWall(shaderUniforms);
+scene.add(shaderWall);
+
+
+
+
 
   // ✅ Gradient Noise Floor Shader
   const gradientShaderMaterial = new THREE.ShaderMaterial({
@@ -283,6 +299,11 @@ const scrollProgress = Math.min(rawScroll / maxScroll, 1);
   const easeOut = t => 1 - Math.pow(1 - t, 3);
   const step = 0.3;
   const growthSpeed = 0.2;
+  
+  const elapsed = performance.now() / 1000;
+shaderUniforms.u_time.value = elapsed;
+shaderUniforms.u_scroll.value = scrollProgress;
+
 
   textMeshBEY.children.forEach((child, index) => {
     const easedScroll = easeOut(scrollProgress);
