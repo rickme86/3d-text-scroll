@@ -1,33 +1,27 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>3D Cube - Framer Embed</title>
-    <style>
-      html,
-      body {
-        margin: 0;
-        padding: 0;
-        overflow: hidden;
-        background: black;
-      }
-
-      #three-container {
-        width: 100vw;
-        height: 100vh;
-        overflow: hidden;
-      }
-
-      canvas {
-        display: block;
-        width: 100% !important;
-        height: 100% !important;
-      }
-    </style>
-  </head>
-  <body>
-    <div id="three-container"></div>
-    <script type="module" src="main.js"></script>
-  </body>
+<head>
+  <meta charset="UTF-8" />
+  <title>3D BEY Extrusion</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      overflow-y: scroll;
+      background: black;
+      height: 200vh; /* Added extra height to allow scrolling */
+    }
+    canvas {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: 0;
+    }
+  </style>
+</head>
+<body>
+  <script type="module" src="main.js"></script>
+</body>
 </html>
