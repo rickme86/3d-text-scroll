@@ -3,6 +3,7 @@ import { FontLoader } from 'three/examples/jsm/loaders/FontLoader.js';
 import { TextGeometry } from 'three/examples/jsm/geometries/TextGeometry.js';
 
 const USE_EXTERNAL_SCROLL = window.self !== window.top;
+document.body.style.overflow = USE_EXTERNAL_SCROLL ? "hidden" : "auto";
 console.log(
   USE_EXTERNAL_SCROLL ?
     "👀 External scroll (Framer iframe) enabled" :
