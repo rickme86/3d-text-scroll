@@ -2,6 +2,25 @@ import * as THREE from 'three';
 import { FontLoader } from 'three/examples/jsm/loaders/FontLoader.js';
 import { TextGeometry } from 'three/examples/jsm/geometries/TextGeometry.js';
 
+const USE_EXTERNAL_SCROLL = window.self !== window.top;
+console.log(
+  USE_EXTERNAL_SCROLL ?
+    "👀 External scroll (Framer iframe) enabled" :
+    "🧪 Local scroll mode (standalone)"
+);
+
+
+let externalScrollY = 0;
+
+// ✅ Only listen for messages if Framer is controlling scroll
+if (USE_EXTERNAL_SCROLL) {
+  window.addEventListener("message", (event) => {
+    if (event.data && typeof event.data.scrollY === "number") {
+      externalScrollY = event.data.scrollY;
+    }
+  });
+}
+
 let scene, camera, renderer;
 let textMeshBEY, meshD, meshN, meshO; // So you can access them globally
 let font = null;
@@ -256,7 +275,10 @@ function onWindowResize() {
 function animate() {
   requestAnimationFrame(animate);
 
-  const scrollProgress = window.scrollY / (document.body.scrollHeight - window.innerHeight);
+const rawScroll = USE_EXTERNAL_SCROLL ? externalScrollY : window.scrollY;
+const maxScroll = 1500;
+const scrollProgress = Math.min(rawScroll / maxScroll, 1);
+
   const easeOut = t => 1 - Math.pow(1 - t, 3);
   const step = 0.3;
   const growthSpeed = 0.2;
