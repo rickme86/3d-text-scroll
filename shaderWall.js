@@ -58,7 +58,11 @@ void main() {
   color = mix(color, navy, smoothstep(0.3, 0.66, g));
   color = mix(color, aqua, smoothstep(0.65, 1.0, g));
 
-  vec2 origin = vec2(0.0, 1.0); // Top-left
+vec2 origin = vec2(0.0, 1.0); // Top-left
+
+
+
+
   float dist = distance(vUv, origin);
   float radius = u_scroll * 1.5 + sin(u_time * 2.0) * 0.05;
   float mask = 1.0 - smoothstep(radius - 0.1, radius + 0.2, dist);
