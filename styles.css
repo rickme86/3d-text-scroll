@@ -1,0 +1,9 @@
+.text-box {
+  font-family: Helvetica, sans-serif;
+  font-size: 40px;
+  font-weight: bold;
+  color: white;
+  background: transparent;
+  white-space: nowrap;
+  pointer-events: none; /* prevents it from blocking mouse interaction */
+}

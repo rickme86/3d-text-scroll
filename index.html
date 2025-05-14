@@ -7,16 +7,29 @@
     html, body {
       margin: 0;
       padding: 0;
-      background: transparent;
-      height: 400vh; /* Added extra height to allow scrolling */
+      background: black; /* Dark background for better contrast */
+      height: 600vh; /* Full viewport height */
+        width: 100%;
+      overflow: visible; /* Disable scrolling */
     }
+
     canvas {
       position: fixed;
       top: 0;
       left: 0;
       width: 100vw;
       height: 100vh;
-      z-index: 0;
+      z-index: 0;  /* WebGL canvas behind */
+    }
+
+    .text-box {
+      position: absolute;
+      z-index: 1; /* Text will be above the canvas */
+      pointer-events: none;
+      color: white; /* White text for visibility */
+      text-align: center;
+      font-size: 40px; /* Make the text larger */
+      transform: translate(-50%, -50%); /* Center text within the viewport */
     }
   </style>
 </head>
