@@ -7,7 +7,7 @@ export function createLeftWall(uniforms) {
   const lineCount = 30;
 
   function createLines() {
-    const x = -boxSize / 2;
+    const x = 0;
     const zStart = -boxSize * 0.5;
     const zEnd = boxSize * 2;
     const lineSpacing = -boxSize * 0.03;
@@ -79,9 +79,19 @@ export function createLeftWall(uniforms) {
     });
   }
 
-  createLines();
+createLines();
 
   group.userData.update = (time, scrollProgress) => {
+    const screenWidth = window.innerWidth;
+    const viewWidth = screenWidth / window.innerHeight * 20; // approximate camera width
+    const wallOffset = viewWidth * 0.5;
+    const isMobile = screenWidth < 768;
+    group.position.x = -wallOffset + (isMobile ? 0 : -5);
+    group.position.z = 0;
+    group.position.y = 0;
+   
+
+
     lines.forEach((line, i) => {
       const mat = line.material;
       mat.uniforms.uTime.value = time;
@@ -92,5 +102,7 @@ export function createLeftWall(uniforms) {
     });
   };
 
-  return group;
+return group;
+
+
 }

@@ -53,6 +53,8 @@ function init() {
   renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.setClearColor(0x000000, 0);
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.shadowMap.enabled = true;
   document.body.appendChild(renderer.domElement);
 
   cssRenderer = new CSS3DRenderer();
@@ -68,8 +70,18 @@ function init() {
   camera.position.z = 100;
 
   scene.add(new THREE.AmbientLight(0xffffff, 0.8));
-  const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
-  dirLight.position.set(50, 100, 50);
+  const dirLight = new THREE.DirectionalLight(0xffffff, 1);
+  dirLight.position.set(-40, 100, -20);
+  dirLight.target.position.set(0, -25, 0);  
+  dirLight.castShadow = true;
+  dirLight.shadow.mapSize.width = 1024;
+  dirLight.shadow.mapSize.height = 1024;
+  dirLight.shadow.camera.near = 0.5;
+  dirLight.shadow.camera.far = 500;
+  dirLight.shadow.camera.left = -100;
+  dirLight.shadow.camera.right = 100;
+  dirLight.shadow.camera.top = 100;
+  dirLight.shadow.camera.bottom = -100;
   scene.add(dirLight);
 
   if (!USE_EXTERNAL_SCROLL) {
@@ -87,36 +99,62 @@ function init() {
   leftWall = createLeftWall(shaderUniforms);
   scene.add(leftWall);
 
-  const gradientShaderMaterial = new THREE.ShaderMaterial({
-    transparent: true,
-    depthWrite: false,
-    side: THREE.DoubleSide,
-    vertexShader: `
-      varying vec2 vUv;
-      void main() {
-        vUv = uv;
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-      }
-    `,
-    fragmentShader: `
-      precision mediump float;
-      varying vec2 vUv;
-      float rand(vec2 co) {
-        return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);
-      }
-      void main() {
-        float noise = rand(vUv * 100.0) * 0.05;
-        float gradient = 1.0 - smoothstep(0.0, 1.0, vUv.y);
-        vec3 color = vec3(gradient * 0.1 + noise);
-        gl_FragColor = vec4(color, gradient);
-      }
-    `
-  });
+const gradientShaderMaterial = new THREE.ShaderMaterial({
+  transparent: false,         // No transparency
+  depthWrite: true,
+  side: THREE.DoubleSide,
+  vertexShader: `
+    varying vec2 vUv;
+    void main() {
+      vUv = uv;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+  `,
+  fragmentShader: `
+ precision mediump float;
+varying vec2 vUv;
+
+// Random noise function
+float rand(vec2 co) {
+  return fract(sin(dot(co.xy, vec2(12.9898, 78.233))) * 43758.5453);
+}
+
+void main() {
+  float offsetY = 0.3;
+  float gradient = 0.8 - clamp((vUv.x + vUv.y) * 0.6 - offsetY, 0.8, 1.0);
+
+
+  float noise = rand(vUv * 100.0) * 0.05;
+
+  // Final color: gradient gray + noise
+  vec3 baseColor = mix(vec3(0.0), vec3(0.3), gradient);
+  vec3 color = baseColor + vec3(noise); // add subtle noise brightness
+
+  gl_FragColor = vec4(color, 1.0);
+}
+
+  `
+});
+
 
   const floorMesh = new THREE.Mesh(new THREE.PlaneGeometry(viewSize * 2.5, viewSize * 2.5), gradientShaderMaterial);
   floorMesh.rotation.x = -Math.PI / 2;
-  floorMesh.position.y = -25;
+  floorMesh.position.y = -40;
+  floorMesh.receiveShadow = true;
   scene.add(floorMesh);
+  
+  // 🟣 Shadow-catcher plane using transparent shadow material
+const shadowCatcher = new THREE.Mesh(
+  new THREE.PlaneGeometry(viewSize * 2.5, viewSize * 2.5),
+  new THREE.ShadowMaterial({ opacity: 0.25 }) // adjust opacity for shadow visibility
+);
+shadowCatcher.rotation.x = -Math.PI / 2;
+shadowCatcher.position.y = -24.99; // just above the shader floor
+shadowCatcher.receiveShadow = true;
+scene.add(shadowCatcher);
+
+  
+  
 
   if (!USE_EXTERNAL_SCROLL) window.scrollTo(0, 0);
 
@@ -144,7 +182,12 @@ function createText() {
   meshO = null;
 
   const shorterSide = Math.min(window.innerWidth, window.innerHeight);
-  textSize = Math.max(3, Math.min(12, shorterSide / 80));
+  const isMobile = window.innerWidth < 768;
+  
+ textSize = Math.max(3, Math.min(12, shorterSide / 80));
+if (!isMobile) {
+  textSize *= 1.3; // 👈 Change this factor to scale up desktop text
+}
   const spacing = textSize * 0.9;
   const lettersBEY = ["B", "E", "Y"];
 
@@ -163,9 +206,12 @@ function createText() {
     geo.computeBoundingBox();
     geo.translate(-0.5 * (geo.boundingBox.max.x + geo.boundingBox.min.x), -geo.boundingBox.min.y, -geo.boundingBox.min.z);
     const mesh = new THREE.Mesh(geo, [frontMaterial, shaderMaterial]);
+    textMeshBEY.renderOrder = 2;
     mesh.scale.set(1, 1, 0.01);
     mesh.position.x = i * spacing;
+    mesh.castShadow = true; 
     textMeshBEY.add(mesh);
+    
   });
   textMeshBEY.rotation.x = -Math.PI / 2;
   textMeshBEY.rotation.z = Math.PI / 2;
@@ -173,22 +219,30 @@ function createText() {
 
   meshD = new THREE.Mesh(new TextGeometry("D", { font, size: textSize, height: 2, curveSegments: 12 }), [frontMaterial, sideMaterial]);
   meshD.scale.set(1, 1, 0.01);
+  meshD.castShadow = true;
   scene.add(meshD);
 
   meshN = new THREE.Mesh(new TextGeometry("N", { font, size: textSize, height: 2, curveSegments: 12 }), [frontMaterial, sideMaterial]);
   meshN.scale.set(1, 1, 0.01);
   meshN.rotation.x = -Math.PI / 2;
   meshN.rotation.z = Math.PI / 2;
+  meshN.castShadow = true;
   scene.add(meshN);
 
   meshO = new THREE.Mesh(new TextGeometry("O", { font, size: textSize, height: 2, curveSegments: 12 }), [frontMaterial.clone(), sideMaterial]);
   meshO.scale.set(1, 1, 0.01);
+  meshO.castShadow = true;
   scene.add(meshO);
 
   // ✅ Mobile/Desktop positioning
-  const isMobile = window.innerWidth < 768;
+
+
   const totalWidth = (lettersBEY.length - 1) * spacing;
 
+  textSize = Math.max(3, Math.min(12, shorterSide / 80));
+if (!isMobile) {
+  textSize *= 1.3;
+}
   if (isMobile) {
     textMeshBEY.position.set(0, -textSize * 0.2, 6);
     meshD.position.set(6, 4, -textSize * 1.5);
@@ -196,18 +250,19 @@ function createText() {
     meshO.position.set(1, -textSize * -0.9, 7);
     meshO.rotation.set(0, Math.PI / 2, 0);
   } else {
-    textMeshBEY.position.set(-totalWidth / 1.7, -25, 4);
+    textMeshBEY.position.set(-totalWidth / 1.9, -25, 0);
     meshD.position.set(spacing * 1.2, 2, -textSize);
-    meshN.position.set(-spacing * -2, -textSize / 4, 15);
-    meshN.position.y = -25;
+    meshN.position.set(-spacing * -2, -textSize / 4, 10);
+    meshN.position.y = -20;
     meshO.position.set(-spacing * 0, -textSize / 1, 8);
     meshO.position.y = -25;
+    meshO.position.x = 5;
     meshO.rotation.x = -Math.PI / 2;
     meshO.rotation.z = Math.PI / 2;
   }
 
   if (!cssWall) {
-    cssWall = createCSS3DTextWall(80, 32, new THREE.Vector3(-10, -20, -200));
+    cssWall = createCSS3DTextWall(80, 32, new THREE.Vector3(25, -100, -200));
     cssWall.scale.set(0.05, 0.05, 0.05);
     cssScene.add(cssWall);
   }
@@ -244,15 +299,11 @@ function onWindowResize() {
   
 }
 
-// (rest of the code above remains unchanged)
-
-// (rest of the code above remains unchanged)
-
 function animate() {
   requestAnimationFrame(animate);
 
   const rawScroll = USE_EXTERNAL_SCROLL ? externalScrollY : window.scrollY;
-  const maxScroll = 5000;
+  const maxScroll = 6000;
   const scrollProgress = Math.min(rawScroll / maxScroll, 1);
 
   const easeOut = (t) => Math.pow(t, 1.5);
@@ -264,45 +315,76 @@ function animate() {
   const baseVerticalOffset = 50;
   const maxScrollShift = 80;
   const verticalShift = baseVerticalOffset - easeOut(scrollProgress) * maxScrollShift;
+  
 
   const aspect = window.innerWidth / window.innerHeight;
   camera.left = (-aspect * viewSize) / 2;
   camera.right = (aspect * viewSize) / 2;
   camera.top = viewSize / 2 + verticalShift;
   camera.bottom = -viewSize / 2 + verticalShift;
-  camera.position.y = 30 + verticalShift;
-  camera.lookAt(0, 0, 0);
-  camera.updateProjectionMatrix();
+  const targetY = 20 + verticalShift;
+  
+ // 🎯 Define camera's start and end position and look target
+  const camStartPos = new THREE.Vector3(30, 30, 30);  // Higher and angled start
+  const camEndPos   = new THREE.Vector3(30, 30, 30);  // Lower, straight-on end
+
+  const lookStart = new THREE.Vector3(0, 0, 0);       // Look center
+  const lookEnd   = new THREE.Vector3(0, -10, 0);     // Look down slightly
+
+  // 🎯 Interpolate position and lookAt
+  const camPos = camStartPos.clone().lerp(camEndPos, easeOut(scrollProgress));
+  camera.position.copy(camPos);
+
+  const camTarget = lookStart.clone().lerp(lookEnd, easeOut(scrollProgress));
+  camera.lookAt(camTarget);
+
+    camera.updateProjectionMatrix();
 
   // 🔧 Update CSS wall position responsively
-  if (cssWall) {
-    const isMobile = window.innerWidth < 768;
-    cssWall.scale.set(0.1, 0.1, 0.001);
-    cssWall.position.z = -200;
+if (cssWall) {
+  const isMobile = window.innerWidth < 768;
 
-    if (isMobile) {
-      cssWall.position.x = camera.left + (camera.right - camera.left) * 0.1;
-      cssWall.position.y = camera.bottom + viewSize * 0.4;
-    } else {
-      cssWall.position.x = camera.left + (camera.right - camera.left) * 0.3;
-      cssWall.position.y = camera.bottom + viewSize * 0.5;
-    }
+  const appearStart = 0.3;
+  const appearEnd = 0.6;
+
+ let transitionProgress = THREE.MathUtils.clamp((scrollProgress - appearStart) / (appearEnd - appearStart), 0, 1);
+ const easedProgress = transitionProgress < 0.5 ? 2 * transitionProgress * transitionProgress : -1 + (4 - 2 * transitionProgress) * transitionProgress;
+
+  cssWall.scale.set(0.1, 0.1, 0.001);
+  cssWall.position.z = -60;
+  if (isMobile) {
+    cssWall.position.x = camera.left + (camera.right - camera.left) * -0.2;
+  } else {
+    cssWall.position.x = camera.left + (camera.right - camera.left) * 0.3;
+}
+
+
+
+  const startY = camera.bottom + viewSize * 1.2;
+  const endY = camera.bottom + viewSize * 0.5;
+  cssWall.position.y = startY - (startY - endY) * easedProgress;
+
+  // Optional: fade in
+  if (cssWall.element && cssWall.element.style) {
+    cssWall.element.style.opacity = easedProgress;
   }
+}
+
 
   if (leftWall.userData.update) {
     leftWall.userData.update(elapsed, scrollProgress);
   }
 
-  const growthSpeeds = { BEY: [6, 6, 6], O: 0.65, N: 1.5, D: 0.5 };
+  const growthSpeeds = { BEY: [8, 12, 18], O: 0.65, N: 1.5, D: 0.5 };
 
   if (textMeshBEY) {
     console.log('Animating BEY, children count:', textMeshBEY.children.length); // Debug
     textMeshBEY.children.forEach((child, index) => {
       let delay = 0.2 * index;
-      if (index === 1) delay -= 0.2;
+      if (index === 1) delay -= 0.1;
       if (index === 2) delay -= 0.5;
 
-      const localProgress = THREE.MathUtils.clamp((scrollProgress - delay) / 4.0, 0, 1);
+      const localProgress = THREE.MathUtils.clamp((scrollProgress - delay) / 8, 0, 1);
       const eased = easeOut(localProgress);
       const targetZ = 0.01 + eased * growthSpeeds.BEY[index];
       child.scale.z += (targetZ - child.scale.z) * 0.3;
@@ -310,7 +392,7 @@ function animate() {
   }
 
   const ondLetters = [meshO, meshN, meshD];
-  const ondDelays = [0.0, 0.2, 0.25];
+  const ondDelays = [0.1, 0.3, 0.25];
   const ondGrowthSpeeds = [growthSpeeds.O, growthSpeeds.N, growthSpeeds.D];
 
   ondLetters.forEach((mesh, i) => {
