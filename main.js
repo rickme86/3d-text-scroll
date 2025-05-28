@@ -383,7 +383,7 @@ function init() {
   carouselItems.forEach((mesh) => {
     const uniforms = mesh.userData?.uniforms;
     if (uniforms?.parallaxStrength) {
-      animateUniform(uniforms.parallaxStrength, 0.06, 150);
+      animateUniform(uniforms.parallaxStrength, 0.4, 150);
     }
   });
 }
