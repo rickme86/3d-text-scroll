@@ -379,7 +379,7 @@ function init() {
     }
 
    if (!isTouchDevice) {
-    const targetStrength = isTouchDevice ? 1.2 : 0.06;
+    const targetStrength = isTouchDevice ? 1.2 : 0.4;
   carouselItems.forEach((mesh) => {
     const uniforms = mesh.userData?.uniforms;
     if (uniforms?.parallaxStrength) {
