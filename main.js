@@ -33,8 +33,7 @@ let isHoveringFocusedItem = false;
 
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
-const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-
+const isTouchDevice = "ontouchstart" in window || navigator.maxTouchPoints > 0;
 
 init();
 
@@ -53,8 +52,8 @@ function getResponsiveCarouselSettings() {
     radius: baseRadius * scale,
     itemSize: {
       width: 60 * scale,
-      height: 34 * scale,
-    },
+      height: 34 * scale
+    }
   };
 }
 
@@ -65,7 +64,7 @@ function snapToNearestItem() {
   let nearestAngle = carouselItems[0].userData.originalAngle;
   let minDistance = Infinity;
 
-  carouselItems.forEach(item => {
+  carouselItems.forEach((item) => {
     const baseAngle = item.userData.originalAngle;
     const rotationsAway = Math.round((rotation - baseAngle) / TWO_PI);
     const candidateAngle = baseAngle + rotationsAway * TWO_PI;
@@ -113,7 +112,7 @@ function animateSnap(start, end, duration = 0.6, onComplete) {
 }
 
 function applyMomentumAndSnap() {
-  const friction = 0.90;
+  const friction = 0.9;
   const velocityThreshold = 0.0003;
 
   isSnapping = true;
@@ -148,15 +147,14 @@ function animateParallaxSweep(uniforms, direction = 1, duration = 600) {
   const startTime = performance.now();
   const fromX = direction > 0 ? 0.1 : 0.9;
   const toX = direction > 0 ? 0.9 : 0.1;
-  
-  const originalStrength = uniforms.parallaxStrength?.value ?? 0.03;
-if (uniforms.parallaxStrength) {
-  animateUniform(uniforms.parallaxStrength, 0.12, duration / 2); // Boost
-  setTimeout(() => {
-    animateUniform(uniforms.parallaxStrength, originalStrength, duration / 2); // Restore
-  }, duration / 2);
-}
 
+  const originalStrength = uniforms.parallaxStrength?.value ?? 0.03;
+  if (uniforms.parallaxStrength) {
+    animateUniform(uniforms.parallaxStrength, 0.12, duration / 2); // Boost
+    setTimeout(() => {
+      animateUniform(uniforms.parallaxStrength, originalStrength, duration / 2); // Restore
+    }, duration / 2);
+  }
 
   function update() {
     const elapsed = performance.now() - startTime;
@@ -172,7 +170,6 @@ if (uniforms.parallaxStrength) {
 
   requestAnimationFrame(update);
 }
-
 
 function animateUniform(uniform, toValue, duration = 300) {
   const fromValue = uniform.value;
@@ -201,7 +198,6 @@ function springToUniform(uniform, target, stiffness = 0.2, damping = 0.7) {
   uniform.spring.velocity = uniform.spring.velocity * damping + delta * stiffness;
   uniform.value += uniform.spring.velocity;
 }
-
 
 function init() {
   scene = new THREE.Scene();
@@ -235,39 +231,27 @@ function init() {
 
   const { radius, itemSize } = getResponsiveCarouselSettings();
 
-carousel = createCarouselMediaGroup({
-  imageUrls: [
-    "/media/image1.jpg",
-    "/media/image2.jpg",
-    "/media/image3.jpg",
-    "/media/image4.jpg",
-  ],
-  backgroundUrls: [
-    "/media/image1_bg.png",
-    "/media/image2_bg.png",
-     "/media/image3_bg.png",
-    "/media/image4.jpg",
-  ],
-  depthMapUrls: [
-    "/media/image1_depth.png",
-    "/media/image2_depth.png",
-    "/media/image3_depth.png",
-    "/media/image4_depth.png",
-  ],
-  backgroundDepthUrls: [
-    "/media/image1_bgdepth.png",
-    "/media/image2_bgdepth.png",  // ✅ your new map goes here
-    "/media/image3_bgdepth.png",
-    "/media/image4_depth.png",
-  ],
-  videoUrls: [],
-  itemSize,
-  radius,
-});
+  carousel = createCarouselMediaGroup({
+    imageUrls: ["/media/image1.jpg", "/media/image2.jpg", "/media/image3.jpg", "/media/image4.jpg"],
+    backgroundUrls: ["/media/image1_bg.png", "/media/image2_bg.png", "/media/image3_bg.png", "/media/image4.jpg"],
+    depthMapUrls: [
+      "/media/image1_depth.png",
+      "/media/image2_depth.png",
+      "/media/image3_depth.png",
+      "/media/image4_depth.png"
+    ],
+    backgroundDepthUrls: [
+      "/media/image1_bgdepth.png",
+      "/media/image2_bgdepth.png", // ✅ your new map goes here
+      "/media/image3_bgdepth.png",
+      "/media/image4_depth.png"
+    ],
+    videoUrls: [],
+    itemSize,
+    radius
+  });
 
-
-
-  carousel.children.forEach(child => {
+  carousel.children.forEach((child) => {
     const pos = new THREE.Vector3();
     child.getWorldPosition(pos);
     carousel.worldToLocal(pos);
@@ -277,79 +261,86 @@ carousel = createCarouselMediaGroup({
     if (child.material) {
       child.material.userData.shader = child.material;
       if (!child.material.uniforms) child.material.uniforms = {};
-      if (!child.material.uniforms.grayscale)
-        child.material.uniforms.grayscale = { value: 1 };
+      if (!child.material.uniforms.grayscale) child.material.uniforms.grayscale = { value: 1 };
     }
   });
+  
+  if (isTouchDevice) {
+  carouselItems.forEach(mesh => {
+    const uniforms = mesh.userData?.uniforms;
+    if (uniforms?.parallaxStrength) {
+      uniforms.parallaxStrength.value = 0.08; // or higher (e.g., 0.08)
+    }
+  });
+}
 
+  
   scene.add(carousel);
   carouselItems = [...carousel.children];
 
   window.addEventListener("resize", onWindowResize);
 
-window.addEventListener("mousemove", (e) => {
-  mouseXNorm = (e.clientX / window.innerWidth) * 2 - 1;
-  mouseYNorm = -(e.clientY / window.innerHeight) * 2 + 1;
-  if (ripplePass) ripplePass.uniforms.mouseX.value = (mouseXNorm + 1) / 2;
+  window.addEventListener("mousemove", (e) => {
+    mouseXNorm = (e.clientX / window.innerWidth) * 2 - 1;
+    mouseYNorm = -(e.clientY / window.innerHeight) * 2 + 1;
+    if (ripplePass) ripplePass.uniforms.mouseX.value = (mouseXNorm + 1) / 2;
 
-  mouse.set(mouseXNorm, mouseYNorm);
-  raycaster.setFromCamera(mouse, camera);
+    mouse.set(mouseXNorm, mouseYNorm);
+    raycaster.setFromCamera(mouse, camera);
 
-  if (bestMatch) {
-    const intersects = raycaster.intersectObject(bestMatch, true);
-    isHoveringFocusedItem = intersects.length > 0;
+    if (bestMatch) {
+      const intersects = raycaster.intersectObject(bestMatch, true);
+      isHoveringFocusedItem = intersects.length > 0;
 
-    // Set grab cursor when hovering focused item and not dragging
-    if (isDragging) {
-      document.body.style.cursor = "grabbing";
-    } else if (isHoveringFocusedItem) {
-      document.body.style.cursor = "grab";
+      // Set grab cursor when hovering focused item and not dragging
+      if (isDragging) {
+        document.body.style.cursor = "grabbing";
+      } else if (isHoveringFocusedItem) {
+        document.body.style.cursor = "grab";
+      } else {
+        document.body.style.cursor = "default";
+      }
     } else {
-      document.body.style.cursor = "default";
-    }
-  } else {
-    isHoveringFocusedItem = false;
-    document.body.style.cursor = isDragging ? "grabbing" : "default";
-  }
-});
-
-
-document.addEventListener("mousedown", (e) => {
-  isDragging = true;
-  lastDragX = e.clientX;
-  dragVelocity = 0;
-  lastDragTime = performance.now();
-
-  if (isHoveringFocusedItem) {
-    document.body.style.cursor = "grabbing";
-  }
-
-  carouselItems.forEach(mesh => {
-    const uniforms = mesh.userData?.uniforms;
-    if (uniforms?.parallaxStrength) {
-      animateUniform(uniforms.parallaxStrength, 0.06, 150);
+      isHoveringFocusedItem = false;
+      document.body.style.cursor = isDragging ? "grabbing" : "default";
     }
   });
-});
 
+  document.addEventListener("mousedown", (e) => {
+    isDragging = true;
+    lastDragX = e.clientX;
+    dragVelocity = 0;
+    lastDragTime = performance.now();
 
-document.addEventListener("mouseup", () => {
-  if (isDragging) {
-    isDragging = false;
-    applyMomentumAndSnap();
-    document.body.style.cursor = isHoveringFocusedItem ? "grab" : "default";
+    if (isHoveringFocusedItem) {
+      document.body.style.cursor = "grabbing";
+    }
 
-    dragOffsetX = 0;
-    dragOffsetY = 0;
-
-    // Delay to ensure bestMatch has updated
-    setTimeout(() => {
-      if (bestMatch?.userData?.uniforms?.parallaxStrength) {
-        animateUniform(bestMatch.userData.uniforms.parallaxStrength, 0.06, 300);
+    carouselItems.forEach((mesh) => {
+      const uniforms = mesh.userData?.uniforms;
+      if (uniforms?.parallaxStrength) {
+        animateUniform(uniforms.parallaxStrength, 0.06, 150);
       }
-    }, 20); // ~1 frame delay
-  }
-});
+    });
+  });
+
+  document.addEventListener("mouseup", () => {
+    if (isDragging) {
+      isDragging = false;
+      applyMomentumAndSnap();
+      document.body.style.cursor = isHoveringFocusedItem ? "grab" : "default";
+
+      dragOffsetX = 0;
+      dragOffsetY = 0;
+
+      // Delay to ensure bestMatch has updated
+      setTimeout(() => {
+        if (bestMatch?.userData?.uniforms?.parallaxStrength) {
+          animateUniform(bestMatch.userData.uniforms.parallaxStrength, 0.06, 300);
+        }
+      }, 20); // ~1 frame delay
+    }
+  });
 
   document.addEventListener("mousemove", (e) => {
     if (isDragging && !isSnapping) {
@@ -369,92 +360,91 @@ document.addEventListener("mouseup", () => {
       lastDragTime = now;
     }
   });
-  
+
   window.addEventListener("mouseleave", () => {
-  isHoveringFocusedItem = false;
-  document.body.style.cursor = "default";
-});
+    isHoveringFocusedItem = false;
+    document.body.style.cursor = "default";
+  });
 
-// TOUCH START
-document.addEventListener("touchstart", (e) => {
-  if (e.touches.length !== 1) return;
-  isDragging = true;
-  lastDragX = e.touches[0].clientX;
-  dragVelocity = 0;
-  lastDragTime = performance.now();
+  // TOUCH START
+  document.addEventListener("touchstart", (e) => {
+    if (e.touches.length !== 1) return;
+    isDragging = true;
+    lastDragX = e.touches[0].clientX;
+    dragVelocity = 0;
+    lastDragTime = performance.now();
 
-  if (isHoveringFocusedItem) {
-    document.body.style.cursor = "grabbing";
-  }
+    if (isHoveringFocusedItem) {
+      document.body.style.cursor = "grabbing";
+    }
 
-  carouselItems.forEach(mesh => {
-    const uniforms = mesh.userData?.uniforms;
-    if (uniforms?.parallaxStrength) {
-      animateUniform(uniforms.parallaxStrength, 0.06, 150);
+    carouselItems.forEach((mesh) => {
+      const uniforms = mesh.userData?.uniforms;
+      if (uniforms?.parallaxStrength) {
+        animateUniform(uniforms.parallaxStrength, 0.06, 150);
+      }
+    });
+  });
+
+  // TOUCH MOVE
+  document.addEventListener(
+    "touchmove",
+    (e) => {
+      e.preventDefault(); // prevent page from scrolling while dragging
+
+      if (!isDragging || isSnapping || e.touches.length !== 1) return;
+
+      const now = performance.now();
+      const currentX = e.touches[0].clientX;
+      const deltaX = currentX - lastDragX;
+      lastDragDirection = Math.sign(deltaX);
+      const deltaTime = now - lastDragTime || 16;
+
+      dragVelocity = (deltaX / deltaTime) * 0.15;
+      dragVelocity = Math.max(Math.min(dragVelocity, 0.02), -0.02);
+      dragOffsetX = deltaX / 100;
+      dragOffsetY = 0;
+
+      targetRotation += deltaX * 0.005;
+      lastDragX = currentX;
+      lastDragTime = now;
+
+      if (ripplePass) {
+        ripplePass.uniforms.mouseX.value = e.touches[0].clientX / window.innerWidth;
+      }
+    },
+    { passive: false }
+  );
+
+  // TOUCH END
+  document.addEventListener("touchend", () => {
+    if (isDragging) {
+      isDragging = false;
+      applyMomentumAndSnap();
+      document.body.style.cursor = isHoveringFocusedItem ? "grab" : "default";
+
+      dragOffsetX = 0;
+      dragOffsetY = 0;
+
+      setTimeout(() => {
+        if (bestMatch?.userData?.uniforms?.parallaxStrength) {
+          animateUniform(bestMatch.userData.uniforms.parallaxStrength, 0.06, 300);
+        }
+      }, 20);
     }
   });
-});  
-  
- // TOUCH MOVE
-document.addEventListener("touchmove", (e) => {
-  e.preventDefault(); // prevent page from scrolling while dragging
 
-  if (!isDragging || isSnapping || e.touches.length !== 1) return;
+  window.addEventListener("touchmove", (e) => {
+    if (e.touches.length > 0 && !isDragging) {
+      const touch = e.touches[0];
+      const x = touch.clientX / window.innerWidth;
+      const y = touch.clientY / window.innerHeight;
 
-  const now = performance.now();
-  const currentX = e.touches[0].clientX;
-  const deltaX = currentX - lastDragX;
-  lastDragDirection = Math.sign(deltaX);
-  const deltaTime = now - lastDragTime || 16;
+      mouseXNorm = x * 2 - 1;
+      mouseYNorm = y * 2 - 1;
+    }
+  });
 
-  dragVelocity = (deltaX / deltaTime) * 0.15;
-  dragVelocity = Math.max(Math.min(dragVelocity, 0.02), -0.02);
-  dragOffsetX = deltaX / 100;
-  dragOffsetY = 0;
-
-  targetRotation += deltaX * 0.005;
-  lastDragX = currentX;
-  lastDragTime = now;
-
-  if (ripplePass) {
-    ripplePass.uniforms.mouseX.value = e.touches[0].clientX / window.innerWidth;
-  }
-}, { passive: false });
-
-  
-  
-// TOUCH END
-document.addEventListener("touchend", () => {
-  if (isDragging) {
-    isDragging = false;
-    applyMomentumAndSnap();
-    document.body.style.cursor = isHoveringFocusedItem ? "grab" : "default";
-
-    dragOffsetX = 0;
-    dragOffsetY = 0;
-
-    setTimeout(() => {
-      if (bestMatch?.userData?.uniforms?.parallaxStrength) {
-        animateUniform(bestMatch.userData.uniforms.parallaxStrength, 0.06, 300);
-      }
-    }, 20);
-  }
-});  
-  
-  
-window.addEventListener("touchmove", (e) => {
-  if (e.touches.length > 0 && !isDragging) {
-    const touch = e.touches[0];
-    const x = touch.clientX / window.innerWidth;
-    const y = touch.clientY / window.innerHeight;
-
-    mouseXNorm = x * 2 - 1;
-    mouseYNorm = y * 2 - 1;
-  }
-});
-
-  
-  
   animate();
 }
 
@@ -477,7 +467,6 @@ function onWindowResize() {
   }
 }
 
-
 function animate() {
   requestAnimationFrame(animate);
 
@@ -491,25 +480,21 @@ function animate() {
   }
   carousel.rotation.y = currentRotation + tiltOffset;
 
-  
-if (bestMatch?.userData?.uniforms) {
-  const uniforms = bestMatch.userData.uniforms;
-  if ('mouseX' in uniforms && 'mouseY' in uniforms) {
-    const baseX = (mouseXNorm + 1) / 2;
-    const baseY = (mouseYNorm + 1) / 2;
+  if (bestMatch?.userData?.uniforms) {
+    const uniforms = bestMatch.userData.uniforms;
+    if ("mouseX" in uniforms && "mouseY" in uniforms) {
+      const baseX = (mouseXNorm + 1) / 2;
+      const baseY = (mouseYNorm + 1) / 2;
 
-    if (isDragging) {
-      uniforms.mouseX.value = THREE.MathUtils.clamp(baseX + dragOffsetX, 0, 1);
-      uniforms.mouseY.value = THREE.MathUtils.clamp(baseY + dragOffsetY, 0, 1);
-    } else {
-      uniforms.mouseX.value = baseX;
-      uniforms.mouseY.value = baseY;
+      if (isDragging) {
+        uniforms.mouseX.value = THREE.MathUtils.clamp(baseX + dragOffsetX, 0, 1);
+        uniforms.mouseY.value = THREE.MathUtils.clamp(baseY + dragOffsetY, 0, 1);
+      } else {
+        uniforms.mouseX.value = baseX;
+        uniforms.mouseY.value = baseY;
+      }
     }
   }
-}
-  
-
-
 
   // Determine focused item
   const cameraDirection = new THREE.Vector3();
@@ -520,7 +505,7 @@ if (bestMatch?.userData?.uniforms) {
   bestMatch = null;
   bestScore = -Infinity;
 
-  carouselItems.forEach(mesh => {
+  carouselItems.forEach((mesh) => {
     const itemDirection = new THREE.Vector3();
     mesh.getWorldPosition(itemDirection);
     itemDirection.sub(camera.position).setY(0).normalize();
@@ -532,17 +517,17 @@ if (bestMatch?.userData?.uniforms) {
   });
 
   // Detect newly focused item
-if (bestMatch && bestMatch !== lastFocusedItem) {
-  const uniforms = bestMatch.userData?.uniforms;
-  if (uniforms?.mouseX && uniforms?.mouseY) {
-    animateParallaxSweep(uniforms, lastDragDirection || 1); // Fallback to left→right
+  if (bestMatch && bestMatch !== lastFocusedItem) {
+    const uniforms = bestMatch.userData?.uniforms;
+    if (uniforms?.mouseX && uniforms?.mouseY) {
+      animateParallaxSweep(uniforms, lastDragDirection || 1); // Fallback to left→right
+    }
+
+    lastFocusedItem = bestMatch;
   }
-  
-  lastFocusedItem = bestMatch;
-}
 
   // Set grayscale based on focus
-  carouselItems.forEach(mesh => {
+  carouselItems.forEach((mesh) => {
     const shader = mesh.material.userData.shader || mesh.material;
     const isFocused = mesh === bestMatch;
 
@@ -552,12 +537,11 @@ if (bestMatch && bestMatch !== lastFocusedItem) {
   });
 
   if (isTouchDevice && !isDragging && bestMatch?.userData?.uniforms) {
-  const uniforms = bestMatch.userData.uniforms;
-  const t = performance.now() * 0.001;
-  uniforms.mouseX.value = 0.5 + 0.05 * Math.sin(t);
-  uniforms.mouseY.value = 0.5 + 0.05 * Math.cos(t * 0.8);
-}
+    const uniforms = bestMatch.userData.uniforms;
+    const t = performance.now() * 0.001;
+    uniforms.mouseX.value = 0.5 + 0.05 * Math.sin(t);
+    uniforms.mouseY.value = 0.5 + 0.05 * Math.cos(t * 0.8);
+  }
 
-  
   composer.render();
 }
