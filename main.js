@@ -432,7 +432,7 @@ function init() {
 
       setTimeout(() => {
         if (bestMatch?.userData?.uniforms?.parallaxStrength) {
-    animateUniform(bestMatch.userData.uniforms.parallaxStrength, isTouchDevice ? 0.5 : 0.06, 300);
+    animateUniform(bestMatch.userData.uniforms.parallaxStrength, isTouchDevice ? 0.1 : 0.06, 300);
 }
 
       }, 20);
