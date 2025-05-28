@@ -1,415 +1,496 @@
 import * as THREE from "three";
-import { FontLoader } from "three/examples/jsm/loaders/FontLoader.js";
-import { TextGeometry } from "three/examples/jsm/geometries/TextGeometry.js";
-import { gradientShader } from "./gradientSideShader.js";
-import { createLeftWall } from "./leftWallWithLines.js";
-import { createCSS3DTextWall } from './cssText3D.js';
-import { CSS3DRenderer } from 'three/examples/jsm/renderers/CSS3DRenderer.js';
+import { createCarouselMediaGroup } from "./Carousel.js";
+import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
+import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
+import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
+import { FisheyeShader } from "./fisheyeShader.js";
+import { VerticalRippleShader } from "./VerticalRippleShader";
 
-const USE_EXTERNAL_SCROLL = window.self !== window.top;
-document.documentElement.style.overflow = USE_EXTERNAL_SCROLL ? "auto" : "auto";
-document.body.style.overflow = USE_EXTERNAL_SCROLL ? "auto" : "auto";
+let scene, camera, renderer, composer;
+let carousel;
+let ripplePass;
+let carouselItems = [];
+let mouseXNorm = 0;
+let mouseYNorm = 0;
+const maxMouseOffset = 0.07;
 
-let externalScrollY = 0;
-if (USE_EXTERNAL_SCROLL) {
-  window.addEventListener("message", (event) => {
-    if (event.data && typeof event.data.scrollY === "number") {
-      externalScrollY = event.data.scrollY;
-    }
-  });
-}
+let currentRotation = 0;
+let targetRotation = 0;
+let isDragging = false;
+let lastDragX = 0;
+let dragOffsetX = 0;
+let dragOffsetY = 0;
+let isSnapping = false;
+let disableMouseTilt = false;
 
-let cssWall = null;
-let cssScene, cssText, scene, camera, renderer, cssRenderer;
-let textMeshBEY, meshD, meshN, meshO;
-let font = null;
-let viewSize = 30;
-let textSize = 8;
-let shaderUniforms;
-let leftWall;
-let shift = 3;
+let dragVelocity = 0;
+let bestMatch = null;
+let bestScore = -Infinity;
+let lastDragTime = 0;
+let lastFocusedItem = null;
+let lastDragDirection = 0; // -1 = right to left, 1 = left to right
+let isHoveringFocusedItem = false;
+
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+
 
 init();
 
+function getFisheyeStrengthForScreen() {
+  const width = window.innerWidth;
+  if (width < 600) return 0.02;
+  if (width < 900) return 0.05;
+  return 0.1;
+}
+
+function getResponsiveCarouselSettings() {
+  const width = window.innerWidth;
+  const baseRadius = 10;
+  const scale = width < 600 ? 0.6 : width < 1000 ? 0.8 : 1;
+  return {
+    radius: baseRadius * scale,
+    itemSize: {
+      width: 60 * scale,
+      height: 34 * scale,
+    },
+  };
+}
+
+function snapToNearestItem() {
+  const TWO_PI = Math.PI * 2;
+  const rotation = targetRotation;
+
+  let nearestAngle = carouselItems[0].userData.originalAngle;
+  let minDistance = Infinity;
+
+  carouselItems.forEach(item => {
+    const baseAngle = item.userData.originalAngle;
+    const rotationsAway = Math.round((rotation - baseAngle) / TWO_PI);
+    const candidateAngle = baseAngle + rotationsAway * TWO_PI;
+    const dist = Math.abs(rotation - candidateAngle);
+    if (dist < minDistance) {
+      minDistance = dist;
+      nearestAngle = candidateAngle;
+    }
+  });
+
+  animateSnap(targetRotation, nearestAngle, 0.6);
+}
+
+function animateSnap(start, end, duration = 0.6, onComplete) {
+  let startTime = null;
+  isSnapping = true;
+  disableMouseTilt = true;
+
+  function step(timestamp) {
+    if (!startTime) startTime = timestamp;
+    const elapsed = (timestamp - startTime) / 1000;
+    const t = Math.min(elapsed / duration, 1);
+    const eased = 1 - Math.pow(1 - t, 3);
+
+    targetRotation = start + (end - start) * eased;
+
+    if (!isDragging) {
+      currentRotation += (targetRotation - currentRotation) * 0.15;
+      carousel.rotation.y = currentRotation;
+    }
+
+    if (t < 1) {
+      requestAnimationFrame(step);
+    } else {
+      targetRotation = end;
+      currentRotation = end;
+      carousel.rotation.y = currentRotation;
+      isSnapping = false;
+      disableMouseTilt = false;
+      if (onComplete) onComplete();
+    }
+  }
+
+  requestAnimationFrame(step);
+}
+
+function applyMomentumAndSnap() {
+  const friction = 0.90;
+  const velocityThreshold = 0.0003;
+
+  isSnapping = true;
+  disableMouseTilt = true;
+
+  function momentumStep() {
+    if (Math.abs(dragVelocity) > velocityThreshold && !isDragging) {
+      const maxRotationPerFrame = 0.03;
+      if (dragVelocity > maxRotationPerFrame) dragVelocity = maxRotationPerFrame;
+      if (dragVelocity < -maxRotationPerFrame) dragVelocity = -maxRotationPerFrame;
+
+      targetRotation += dragVelocity;
+      dragVelocity *= friction;
+      requestAnimationFrame(momentumStep);
+    } else {
+      snapToNearestItem();
+      disableMouseTilt = false;
+      isSnapping = false;
+    }
+  }
+
+  momentumStep();
+}
+
+function smoothDeadZone(value, deadZone) {
+  if (Math.abs(value) <= deadZone) return 0;
+  const sign = Math.sign(value);
+  return ((Math.abs(value) - deadZone) / (1 - deadZone)) * sign;
+}
+
+function animateParallaxSweep(uniforms, direction = 1, duration = 600) {
+  const startTime = performance.now();
+  const fromX = direction > 0 ? 0.1 : 0.9;
+  const toX = direction > 0 ? 0.9 : 0.1;
+  
+  const originalStrength = uniforms.parallaxStrength?.value ?? 0.03;
+if (uniforms.parallaxStrength) {
+  animateUniform(uniforms.parallaxStrength, 0.12, duration / 2); // Boost
+  setTimeout(() => {
+    animateUniform(uniforms.parallaxStrength, originalStrength, duration / 2); // Restore
+  }, duration / 2);
+}
+
+
+  function update() {
+    const elapsed = performance.now() - startTime;
+    const t = Math.min(elapsed / duration, 1);
+    const eased = 1 - Math.pow(1 - t, 3);
+
+    uniforms.mouseX.value = THREE.MathUtils.lerp(fromX, toX, eased);
+
+    if (t < 1) {
+      requestAnimationFrame(update);
+    }
+  }
+
+  requestAnimationFrame(update);
+}
+
+
+function animateUniform(uniform, toValue, duration = 300) {
+  const fromValue = uniform.value;
+  const startTime = performance.now();
+
+  function update() {
+    const elapsed = performance.now() - startTime;
+    const t = Math.min(elapsed / duration, 1);
+    const eased = 1 - Math.pow(1 - t, 3);
+    uniform.value = fromValue + (toValue - fromValue) * eased;
+
+    if (t < 1) {
+      requestAnimationFrame(update);
+    }
+  }
+
+  requestAnimationFrame(update);
+}
+
+function springToUniform(uniform, target, stiffness = 0.2, damping = 0.7) {
+  if (!uniform.spring) {
+    uniform.spring = { velocity: 0 };
+  }
+
+  const delta = target - uniform.value;
+  uniform.spring.velocity = uniform.spring.velocity * damping + delta * stiffness;
+  uniform.value += uniform.spring.velocity;
+}
+
+
 function init() {
   scene = new THREE.Scene();
-  cssScene = new THREE.Scene();
-  scene.background = null;
 
-  const aspect = window.innerWidth / window.innerHeight;
-
-  camera = new THREE.OrthographicCamera(
-    (-aspect * viewSize) / 2,
-    (aspect * viewSize) / 2,
-    viewSize / 2 + shift,
-    -viewSize / 2 + shift,
-    -100,
-    500
-  );
-
-  camera.position.set(30, 30, 30);
-  camera.lookAt(scene.position);
+  camera = new THREE.PerspectiveCamera(100, window.innerWidth / window.innerHeight, 0.1, 1000);
+  camera.position.set(0, 0, 0);
+  camera.lookAt(new THREE.Vector3(0, 0, -1));
 
   renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
   renderer.setSize(window.innerWidth, window.innerHeight);
-  renderer.setClearColor(0x000000, 0);
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-  renderer.shadowMap.enabled = true;
   document.body.appendChild(renderer.domElement);
 
-  cssRenderer = new CSS3DRenderer();
-  cssRenderer.setSize(window.innerWidth, window.innerHeight);
-  cssRenderer.domElement.style.position = 'fixed';
-  cssRenderer.domElement.style.top = '0';
-  cssRenderer.domElement.style.left = '0';
-  cssRenderer.domElement.style.pointerEvents = 'none';
-  cssRenderer.domElement.style.zIndex = '0';
-  renderer.domElement.style.zIndex = '1';
-  document.body.appendChild(cssRenderer.domElement);
+  composer = new EffectComposer(renderer);
+  composer.addPass(new RenderPass(scene, camera));
 
-  camera.position.z = 100;
+  ripplePass = new ShaderPass(VerticalRippleShader);
+  ripplePass.uniforms.segmentWidth.value = 0.05;
+  ripplePass.uniforms.edgeSize.value = 0.15;
+  ripplePass.uniforms.time.value = 0;
+  ripplePass.uniforms.mouseX = { value: 0 };
+  ripplePass.renderToScreen = false;
+  composer.addPass(ripplePass);
 
-  scene.add(new THREE.AmbientLight(0xffffff, 0.8));
-  const dirLight = new THREE.DirectionalLight(0xffffff, 1);
-  dirLight.position.set(-40, 100, -20);
-  dirLight.target.position.set(0, -25, 0);  
-  dirLight.castShadow = true;
-  dirLight.shadow.mapSize.width = 1024;
-  dirLight.shadow.mapSize.height = 1024;
-  dirLight.shadow.camera.near = 0.5;
-  dirLight.shadow.camera.far = 500;
-  dirLight.shadow.camera.left = -100;
-  dirLight.shadow.camera.right = 100;
-  dirLight.shadow.camera.top = 100;
-  dirLight.shadow.camera.bottom = -100;
-  scene.add(dirLight);
+  const fisheyePass = new ShaderPass(FisheyeShader);
+  fisheyePass.uniforms.aspect.value = window.innerWidth / window.innerHeight;
+  fisheyePass.uniforms.strength.value = getFisheyeStrengthForScreen();
+  fisheyePass.renderToScreen = true;
+  composer.addPass(fisheyePass);
 
-  if (!USE_EXTERNAL_SCROLL) {
-    const scrollSpace = document.createElement("div");
-    scrollSpace.style.height = `5000px`;
-    scrollSpace.style.pointerEvents = "none";
-    document.body.appendChild(scrollSpace);
-  }
+  scene.add(new THREE.AmbientLight(0xffffff, 1));
 
-  shaderUniforms = {
-    u_time: { value: 0 },
-    u_scroll: { value: 0 }
-  };
+  const { radius, itemSize } = getResponsiveCarouselSettings();
 
-  leftWall = createLeftWall(shaderUniforms);
-  scene.add(leftWall);
-
-const gradientShaderMaterial = new THREE.ShaderMaterial({
-  transparent: false,         // No transparency
-  depthWrite: true,
-  side: THREE.DoubleSide,
-  vertexShader: `
-    varying vec2 vUv;
-    void main() {
-      vUv = uv;
-      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-    }
-  `,
-  fragmentShader: `
- precision mediump float;
-varying vec2 vUv;
-
-// Random noise function
-float rand(vec2 co) {
-  return fract(sin(dot(co.xy, vec2(12.9898, 78.233))) * 43758.5453);
-}
-
-void main() {
-  float offsetY = 0.3;
-  float gradient = 0.8 - clamp((vUv.x + vUv.y) * 0.6 - offsetY, 0.8, 1.0);
-
-
-  float noise = rand(vUv * 100.0) * 0.05;
-
-  // Final color: gradient gray + noise
-  vec3 baseColor = mix(vec3(0.0), vec3(0.3), gradient);
-  vec3 color = baseColor + vec3(noise); // add subtle noise brightness
-
-  gl_FragColor = vec4(color, 1.0);
-}
-
-  `
+carousel = createCarouselMediaGroup({
+  imageUrls: [
+    "/media/image1.jpg",
+    "/media/image2.jpg",
+    "/media/image3.jpg",
+    "/media/image4.jpg",
+  ],
+  backgroundUrls: [
+    "/media/image1_bg.png",
+    "/media/image2_bg.png",
+     "/media/image3_bg.png",
+    "/media/image4.jpg",
+  ],
+  depthMapUrls: [
+    "/media/image1_depth.png",
+    "/media/image2_depth.png",
+    "/media/image3_depth.png",
+    "/media/image4_depth.png",
+  ],
+  backgroundDepthUrls: [
+    "/media/image1_bgdepth.png",
+    "/media/image2_bgdepth.png",  // ✅ your new map goes here
+    "/media/image3_bgdepth.png",
+    "/media/image4_depth.png",
+  ],
+  videoUrls: [],
+  itemSize,
+  radius,
 });
 
 
-  const floorMesh = new THREE.Mesh(new THREE.PlaneGeometry(viewSize * 2.5, viewSize * 2.5), gradientShaderMaterial);
-  floorMesh.rotation.x = -Math.PI / 2;
-  floorMesh.position.y = -40;
-  floorMesh.receiveShadow = true;
-  scene.add(floorMesh);
-  
-  // 🟣 Shadow-catcher plane using transparent shadow material
-const shadowCatcher = new THREE.Mesh(
-  new THREE.PlaneGeometry(viewSize * 2.5, viewSize * 2.5),
-  new THREE.ShadowMaterial({ opacity: 0.25 }) // adjust opacity for shadow visibility
-);
-shadowCatcher.rotation.x = -Math.PI / 2;
-shadowCatcher.position.y = -24.99; // just above the shader floor
-shadowCatcher.receiveShadow = true;
-scene.add(shadowCatcher);
 
-  
-  
+  carousel.children.forEach(child => {
+    const pos = new THREE.Vector3();
+    child.getWorldPosition(pos);
+    carousel.worldToLocal(pos);
+    const angle = Math.atan2(pos.x, pos.z);
+    child.userData.originalAngle = (angle + Math.PI * 2) % (Math.PI * 2);
 
-  if (!USE_EXTERNAL_SCROLL) window.scrollTo(0, 0);
-
-  const loader = new FontLoader();
-  loader.load("/fonts/ArtificBlack.typeface.json", (loadedFont) => {
-    font = loadedFont;
-    createText();
-    animate();
+    if (child.material) {
+      child.material.userData.shader = child.material;
+      if (!child.material.uniforms) child.material.uniforms = {};
+      if (!child.material.uniforms.grayscale)
+        child.material.uniforms.grayscale = { value: 1 };
+    }
   });
+
+  scene.add(carousel);
+  carouselItems = [...carousel.children];
 
   window.addEventListener("resize", onWindowResize);
-}
 
-function createText() {
-  if (!font) return;
+window.addEventListener("mousemove", (e) => {
+  mouseXNorm = (e.clientX / window.innerWidth) * 2 - 1;
+  mouseYNorm = -(e.clientY / window.innerHeight) * 2 + 1;
+  if (ripplePass) ripplePass.uniforms.mouseX.value = (mouseXNorm + 1) / 2;
 
-  if (textMeshBEY) scene.remove(textMeshBEY);
-  if (meshD) scene.remove(meshD);
-  if (meshN) scene.remove(meshN);
-  if (meshO) scene.remove(meshO);
+  mouse.set(mouseXNorm, mouseYNorm);
+  raycaster.setFromCamera(mouse, camera);
 
-  textMeshBEY = null;
-  meshD = null;
-  meshN = null;
-  meshO = null;
+  if (bestMatch) {
+    const intersects = raycaster.intersectObject(bestMatch, true);
+    isHoveringFocusedItem = intersects.length > 0;
 
-  const shorterSide = Math.min(window.innerWidth, window.innerHeight);
-  const isMobile = window.innerWidth < 768;
-  
- textSize = Math.max(3, Math.min(12, shorterSide / 80));
-if (!isMobile) {
-  textSize *= 1.3; // 👈 Change this factor to scale up desktop text
-}
-  const spacing = textSize * 0.9;
-  const lettersBEY = ["B", "E", "Y"];
-
-  const frontMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff });
-  const sideMaterial = new THREE.MeshStandardMaterial({ color: 0x111111 });
-
-  const shaderMaterial = new THREE.ShaderMaterial({
-    vertexShader: gradientShader.vertexShader,
-    fragmentShader: gradientShader.fragmentShader,
-    transparent: false
-  });
-
-  textMeshBEY = new THREE.Group();
-  lettersBEY.forEach((char, i) => {
-    const geo = new TextGeometry(char, { font, size: textSize, height: 12, curveSegments: 12 });
-    geo.computeBoundingBox();
-    geo.translate(-0.5 * (geo.boundingBox.max.x + geo.boundingBox.min.x), -geo.boundingBox.min.y, -geo.boundingBox.min.z);
-    const mesh = new THREE.Mesh(geo, [frontMaterial, shaderMaterial]);
-    textMeshBEY.renderOrder = 2;
-    mesh.scale.set(1, 1, 0.01);
-    mesh.position.x = i * spacing;
-    mesh.castShadow = true; 
-    textMeshBEY.add(mesh);
-    
-  });
-  textMeshBEY.rotation.x = -Math.PI / 2;
-  textMeshBEY.rotation.z = Math.PI / 2;
-  scene.add(textMeshBEY);
-
-  meshD = new THREE.Mesh(new TextGeometry("D", { font, size: textSize, height: 2, curveSegments: 12 }), [frontMaterial, sideMaterial]);
-  meshD.scale.set(1, 1, 0.01);
-  meshD.castShadow = true;
-  scene.add(meshD);
-
-  meshN = new THREE.Mesh(new TextGeometry("N", { font, size: textSize, height: 2, curveSegments: 12 }), [frontMaterial, sideMaterial]);
-  meshN.scale.set(1, 1, 0.01);
-  meshN.rotation.x = -Math.PI / 2;
-  meshN.rotation.z = Math.PI / 2;
-  meshN.castShadow = true;
-  scene.add(meshN);
-
-  meshO = new THREE.Mesh(new TextGeometry("O", { font, size: textSize, height: 2, curveSegments: 12 }), [frontMaterial.clone(), sideMaterial]);
-  meshO.scale.set(1, 1, 0.01);
-  meshO.castShadow = true;
-  scene.add(meshO);
-
-  // ✅ Mobile/Desktop positioning
-
-
-  const totalWidth = (lettersBEY.length - 1) * spacing;
-
-  textSize = Math.max(3, Math.min(12, shorterSide / 80));
-if (!isMobile) {
-  textSize *= 1.3;
-}
-  if (isMobile) {
-    textMeshBEY.position.set(0, -textSize * 0.2, 6);
-    meshD.position.set(6, 4, -textSize * 1.5);
-    meshN.position.set(8, -textSize * 1.2, 4);
-    meshO.position.set(1, -textSize * -0.9, 7);
-    meshO.rotation.set(0, Math.PI / 2, 0);
+    // Set grab cursor when hovering focused item and not dragging
+    if (isDragging) {
+      document.body.style.cursor = "grabbing";
+    } else if (isHoveringFocusedItem) {
+      document.body.style.cursor = "grab";
+    } else {
+      document.body.style.cursor = "default";
+    }
   } else {
-    textMeshBEY.position.set(-totalWidth / 1.9, -25, 0);
-    meshD.position.set(spacing * 1.2, 2, -textSize);
-    meshN.position.set(-spacing * -2, -textSize / 4, 10);
-    meshN.position.y = -20;
-    meshO.position.set(-spacing * 0, -textSize / 1, 8);
-    meshO.position.y = -25;
-    meshO.position.x = 5;
-    meshO.rotation.x = -Math.PI / 2;
-    meshO.rotation.z = Math.PI / 2;
+    isHoveringFocusedItem = false;
+    document.body.style.cursor = isDragging ? "grabbing" : "default";
+  }
+});
+
+
+document.addEventListener("mousedown", (e) => {
+  isDragging = true;
+  lastDragX = e.clientX;
+  dragVelocity = 0;
+  lastDragTime = performance.now();
+
+  if (isHoveringFocusedItem) {
+    document.body.style.cursor = "grabbing";
   }
 
-  if (!cssWall) {
-    cssWall = createCSS3DTextWall(80, 32, new THREE.Vector3(25, -100, -200));
-    cssWall.scale.set(0.05, 0.05, 0.05);
-    cssScene.add(cssWall);
+  carouselItems.forEach(mesh => {
+    const uniforms = mesh.userData?.uniforms;
+    if (uniforms?.parallaxStrength) {
+      animateUniform(uniforms.parallaxStrength, 0.06, 150);
+    }
+  });
+});
+
+
+document.addEventListener("mouseup", () => {
+  if (isDragging) {
+    isDragging = false;
+    applyMomentumAndSnap();
+    document.body.style.cursor = isHoveringFocusedItem ? "grab" : "default";
+
+    dragOffsetX = 0;
+    dragOffsetY = 0;
+
+    // Delay to ensure bestMatch has updated
+    setTimeout(() => {
+      if (bestMatch?.userData?.uniforms?.parallaxStrength) {
+        animateUniform(bestMatch.userData.uniforms.parallaxStrength, 0.06, 300);
+      }
+    }, 20); // ~1 frame delay
   }
+});
+
+  document.addEventListener("mousemove", (e) => {
+    if (isDragging && !isSnapping) {
+      const now = performance.now();
+      const deltaX = e.clientX - lastDragX;
+      lastDragDirection = Math.sign(deltaX);
+      const deltaTime = now - lastDragTime || 16;
+
+      dragVelocity = (deltaX / deltaTime) * 0.15;
+      dragVelocity = Math.max(Math.min(dragVelocity, 0.02), -0.02);
+      dragOffsetX = deltaX / 100;
+      dragOffsetY = (e.movementY || 0) / 100;
+
+      targetRotation += deltaX * 0.005;
+
+      lastDragX = e.clientX;
+      lastDragTime = now;
+    }
+  });
+  
+  window.addEventListener("mouseleave", () => {
+  isHoveringFocusedItem = false;
+  document.body.style.cursor = "default";
+});
+
+window.addEventListener("touchmove", (e) => {
+  if (e.touches.length > 0 && !isDragging) {
+    const touch = e.touches[0];
+    const x = touch.clientX / window.innerWidth;
+    const y = touch.clientY / window.innerHeight;
+
+    mouseXNorm = x * 2 - 1;
+    mouseYNorm = y * 2 - 1;
+  }
+});
+
+  
+  
+  animate();
 }
-
 
 function onWindowResize() {
-  const width = window.innerWidth;
-  const height = window.innerHeight;
-  const aspect = width / height;
-
-  renderer.setSize(width, height);
-  cssRenderer.setSize(width, height);
-
-  camera.left = (-aspect * viewSize) / 2;
-  camera.right = (aspect * viewSize) / 2;
-  camera.top = viewSize / 2 + shift;
-  camera.bottom = -viewSize / 2 + shift;
+  camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
-  renderer.setPixelRatio(window.devicePixelRatio);
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  composer.setSize(window.innerWidth, window.innerHeight);
 
-  if (font) {
-    createText();
+  // Update carousel Z position responsively
+  if (carousel) {
+    const screenWidth = window.innerWidth;
+    if (screenWidth < 600) {
+      carousel.position.z = 3;
+    } else if (screenWidth < 1000) {
+      carousel.position.z = 5.0;
+    } else {
+      carousel.position.z = 8;
+    }
   }
+}
 
-  if (cssWall) {
-    cssWall.scale.set(0.1, 0.1, 0.001);
-    cssWall.position.z = -200;
-    
-    const viewWidth = camera.right - camera.left;
-    cssWall.position.x = camera.left + viewWidth * 0.05; // ~5% from left
-    cssWall.position.y = camera.bottom + (viewSize * 0.5); // vertically center-ish
-}
-  
-}
 
 function animate() {
   requestAnimationFrame(animate);
 
-  const rawScroll = USE_EXTERNAL_SCROLL ? externalScrollY : window.scrollY;
-  const maxScroll = 6000;
-  const scrollProgress = Math.min(rawScroll / maxScroll, 1);
+  currentRotation += (targetRotation - currentRotation) * 0.15;
 
-  const easeOut = (t) => Math.pow(t, 1.5);
-  const elapsed = performance.now() / 1000;
+  // Conditional tilt
+  let tiltOffset = 0;
+  if (!isHoveringFocusedItem && !disableMouseTilt) {
+    const smoothedMouseX = smoothDeadZone(mouseXNorm, 0.1); // deadZone was missing here
+    tiltOffset = smoothedMouseX * maxMouseOffset;
+  }
+  carousel.rotation.y = currentRotation + tiltOffset;
 
-  shaderUniforms.u_time.value = elapsed;
-  shaderUniforms.u_scroll.value = rawScroll;
-
-  const baseVerticalOffset = 50;
-  const maxScrollShift = 80;
-  const verticalShift = baseVerticalOffset - easeOut(scrollProgress) * maxScrollShift;
   
+if (bestMatch?.userData?.uniforms) {
+  const uniforms = bestMatch.userData.uniforms;
+  if ('mouseX' in uniforms && 'mouseY' in uniforms) {
+    const baseX = (mouseXNorm + 1) / 2;
+    const baseY = (mouseYNorm + 1) / 2;
 
-  const aspect = window.innerWidth / window.innerHeight;
-  camera.left = (-aspect * viewSize) / 2;
-  camera.right = (aspect * viewSize) / 2;
-  camera.top = viewSize / 2 + verticalShift;
-  camera.bottom = -viewSize / 2 + verticalShift;
-  const targetY = 20 + verticalShift;
-  
- // 🎯 Define camera's start and end position and look target
-  const camStartPos = new THREE.Vector3(30, 30, 30);  // Higher and angled start
-  const camEndPos   = new THREE.Vector3(30, 30, 30);  // Lower, straight-on end
-
-  const lookStart = new THREE.Vector3(0, 0, 0);       // Look center
-  const lookEnd   = new THREE.Vector3(0, -10, 0);     // Look down slightly
-
-  // 🎯 Interpolate position and lookAt
-  const camPos = camStartPos.clone().lerp(camEndPos, easeOut(scrollProgress));
-  camera.position.copy(camPos);
-
-  const camTarget = lookStart.clone().lerp(lookEnd, easeOut(scrollProgress));
-  camera.lookAt(camTarget);
-
-    camera.updateProjectionMatrix();
-
-  // 🔧 Update CSS wall position responsively
-if (cssWall) {
-  const isMobile = window.innerWidth < 768;
-
-  const appearStart = 0.3;
-  const appearEnd = 0.6;
-
- let transitionProgress = THREE.MathUtils.clamp((scrollProgress - appearStart) / (appearEnd - appearStart), 0, 1);
- const easedProgress = transitionProgress < 0.5 ? 2 * transitionProgress * transitionProgress : -1 + (4 - 2 * transitionProgress) * transitionProgress;
-
-  cssWall.scale.set(0.1, 0.1, 0.001);
-  cssWall.position.z = -60;
-  if (isMobile) {
-    cssWall.position.x = camera.left + (camera.right - camera.left) * -0.2;
-  } else {
-    cssWall.position.x = camera.left + (camera.right - camera.left) * 0.3;
-}
-
-
-
-  const startY = camera.bottom + viewSize * 1.2;
-  const endY = camera.bottom + viewSize * 0.5;
-  cssWall.position.y = startY - (startY - endY) * easedProgress;
-
-  // Optional: fade in
-  if (cssWall.element && cssWall.element.style) {
-    cssWall.element.style.opacity = easedProgress;
+    if (isDragging) {
+      uniforms.mouseX.value = THREE.MathUtils.clamp(baseX + dragOffsetX, 0, 1);
+      uniforms.mouseY.value = THREE.MathUtils.clamp(baseY + dragOffsetY, 0, 1);
+    } else {
+      uniforms.mouseX.value = baseX;
+      uniforms.mouseY.value = baseY;
+    }
   }
 }
+  
 
 
-  if (leftWall.userData.update) {
-    leftWall.userData.update(elapsed, scrollProgress);
-  }
 
-  const growthSpeeds = { BEY: [8, 12, 18], O: 0.65, N: 1.5, D: 0.5 };
+  // Determine focused item
+  const cameraDirection = new THREE.Vector3();
+  camera.getWorldDirection(cameraDirection);
+  cameraDirection.y = 0;
+  cameraDirection.normalize();
 
-  if (textMeshBEY) {
-    console.log('Animating BEY, children count:', textMeshBEY.children.length); // Debug
-    textMeshBEY.children.forEach((child, index) => {
-      let delay = 0.2 * index;
-      if (index === 1) delay -= 0.1;
-      if (index === 2) delay -= 0.5;
+  bestMatch = null;
+  bestScore = -Infinity;
 
-      const localProgress = THREE.MathUtils.clamp((scrollProgress - delay) / 8, 0, 1);
-      const eased = easeOut(localProgress);
-      const targetZ = 0.01 + eased * growthSpeeds.BEY[index];
-      child.scale.z += (targetZ - child.scale.z) * 0.3;
-    });
-  }
-
-  const ondLetters = [meshO, meshN, meshD];
-  const ondDelays = [0.1, 0.3, 0.25];
-  const ondGrowthSpeeds = [growthSpeeds.O, growthSpeeds.N, growthSpeeds.D];
-
-  ondLetters.forEach((mesh, i) => {
-    if (!mesh) return;
-    const delay = ondDelays[i];
-    const duration = 0.6;
-    const localProgress = THREE.MathUtils.clamp((scrollProgress - 0.25 - delay) / duration, 0, 1);
-    const eased = easeOut(localProgress);
-    const targetZ = 0.01 + eased * ondGrowthSpeeds[i];
-    mesh.scale.z += (targetZ - mesh.scale.z) * 0.3;
-
-    mesh.material.forEach?.((m) => {
-      if (m.transparent) m.opacity = eased;
-    });
+  carouselItems.forEach(mesh => {
+    const itemDirection = new THREE.Vector3();
+    mesh.getWorldPosition(itemDirection);
+    itemDirection.sub(camera.position).setY(0).normalize();
+    const dot = cameraDirection.dot(itemDirection);
+    if (dot > bestScore) {
+      bestScore = dot;
+      bestMatch = mesh;
+    }
   });
 
-  cssRenderer.render(cssScene, camera);
-  renderer.render(scene, camera);
+  // Detect newly focused item
+if (bestMatch && bestMatch !== lastFocusedItem) {
+  const uniforms = bestMatch.userData?.uniforms;
+  if (uniforms?.mouseX && uniforms?.mouseY) {
+    animateParallaxSweep(uniforms, lastDragDirection || 1); // Fallback to left→right
+  }
+  
+  lastFocusedItem = bestMatch;
 }
 
+  // Set grayscale based on focus
+  carouselItems.forEach(mesh => {
+    const shader = mesh.material.userData.shader || mesh.material;
+    const isFocused = mesh === bestMatch;
+
+    if (shader && shader.uniforms?.grayscale !== undefined) {
+      shader.uniforms.grayscale.value = isFocused ? 0.0 : 1.0;
+    }
+  });
+
+  if (isTouchDevice && !isDragging && bestMatch?.userData?.uniforms) {
+  const uniforms = bestMatch.userData.uniforms;
+  const t = performance.now() * 0.001;
+  uniforms.mouseX.value = 0.5 + 0.05 * Math.sin(t);
+  uniforms.mouseY.value = 0.5 + 0.05 * Math.cos(t * 0.8);
+}
+
+  
+  composer.render();
+}
