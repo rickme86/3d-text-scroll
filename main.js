@@ -272,7 +272,7 @@ function init() {
   carouselItems.forEach(mesh => {
     const uniforms = mesh.userData?.uniforms;
     if (uniforms?.parallaxStrength) {
-      uniforms.parallaxStrength.value = 5.0; // or higher (e.g., 0.08)
+      uniforms.parallaxStrength.value = 0.5; // or higher (e.g., 0.08)
     }
   });
 }
