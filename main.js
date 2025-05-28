@@ -375,6 +375,73 @@ document.addEventListener("mouseup", () => {
   document.body.style.cursor = "default";
 });
 
+// TOUCH START
+document.addEventListener("touchstart", (e) => {
+  if (e.touches.length !== 1) return;
+  isDragging = true;
+  lastDragX = e.touches[0].clientX;
+  dragVelocity = 0;
+  lastDragTime = performance.now();
+
+  if (isHoveringFocusedItem) {
+    document.body.style.cursor = "grabbing";
+  }
+
+  carouselItems.forEach(mesh => {
+    const uniforms = mesh.userData?.uniforms;
+    if (uniforms?.parallaxStrength) {
+      animateUniform(uniforms.parallaxStrength, 0.06, 150);
+    }
+  });
+});  
+  
+ // TOUCH MOVE
+document.addEventListener("touchmove", (e) => {
+  e.preventDefault(); // prevent page from scrolling while dragging
+
+  if (!isDragging || isSnapping || e.touches.length !== 1) return;
+
+  const now = performance.now();
+  const currentX = e.touches[0].clientX;
+  const deltaX = currentX - lastDragX;
+  lastDragDirection = Math.sign(deltaX);
+  const deltaTime = now - lastDragTime || 16;
+
+  dragVelocity = (deltaX / deltaTime) * 0.15;
+  dragVelocity = Math.max(Math.min(dragVelocity, 0.02), -0.02);
+  dragOffsetX = deltaX / 100;
+  dragOffsetY = 0;
+
+  targetRotation += deltaX * 0.005;
+  lastDragX = currentX;
+  lastDragTime = now;
+
+  if (ripplePass) {
+    ripplePass.uniforms.mouseX.value = e.touches[0].clientX / window.innerWidth;
+  }
+}, { passive: false });
+
+  
+  
+// TOUCH END
+document.addEventListener("touchend", () => {
+  if (isDragging) {
+    isDragging = false;
+    applyMomentumAndSnap();
+    document.body.style.cursor = isHoveringFocusedItem ? "grab" : "default";
+
+    dragOffsetX = 0;
+    dragOffsetY = 0;
+
+    setTimeout(() => {
+      if (bestMatch?.userData?.uniforms?.parallaxStrength) {
+        animateUniform(bestMatch.userData.uniforms.parallaxStrength, 0.06, 300);
+      }
+    }, 20);
+  }
+});  
+  
+  
 window.addEventListener("touchmove", (e) => {
   if (e.touches.length > 0 && !isDragging) {
     const touch = e.touches[0];
