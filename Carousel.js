@@ -25,7 +25,7 @@ function createParallaxMaterial(foregroundUrl, backgroundUrl, depthMapUrl, backg
     background: { value: background },
     depthMap: { value: depthMap },
     backgroundDepthMap: { value: backgroundDepthMap },
-    parallaxStrength: { value: 0.03 },
+    parallaxStrength: { value: window.innerWidth < 600 ? 0.5 : 0.03 },
     mouseX: { value: 0.5 },
     mouseY: { value: 0.5 },
     grayscale: { value: 0.0 },
