@@ -265,7 +265,10 @@ function init() {
     }
   });
   
-  if (isTouchDevice) {
+  scene.add(carousel);
+  carouselItems = [...carousel.children];
+  
+    if (isTouchDevice) {
   carouselItems.forEach(mesh => {
     const uniforms = mesh.userData?.uniforms;
     if (uniforms?.parallaxStrength) {
@@ -273,10 +276,6 @@ function init() {
     }
   });
 }
-
-  
-  scene.add(carousel);
-  carouselItems = [...carousel.children];
 
   window.addEventListener("resize", onWindowResize);
 
@@ -377,16 +376,6 @@ function init() {
     if (isHoveringFocusedItem) {
       document.body.style.cursor = "grabbing";
     }
-
-   if (!isTouchDevice) {
-    const targetStrength = isTouchDevice ? 1.2 : 0.4;
-  carouselItems.forEach((mesh) => {
-    const uniforms = mesh.userData?.uniforms;
-    if (uniforms?.parallaxStrength) {
-      animateUniform(uniforms.parallaxStrength, 0.4, 150);
-    }
-  });
-}
 
   });
 
