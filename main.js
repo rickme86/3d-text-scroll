@@ -269,7 +269,7 @@ function init() {
   carouselItems.forEach(mesh => {
     const uniforms = mesh.userData?.uniforms;
     if (uniforms?.parallaxStrength) {
-      uniforms.parallaxStrength.value = 5.0; // or higher (e.g., 0.08)
+      uniforms.parallaxStrength.value = 2.0; // or higher (e.g., 0.08)
     }
   });
 }
@@ -486,8 +486,8 @@ if (bestMatch?.userData?.uniforms) {
   if ("mouseX" in uniforms && "mouseY" in uniforms) {
     if (isTouchDevice && !isDragging) {
       // Force exaggerated parallax on touch devices when idle
-      uniforms.mouseX.value = 1.0;
-      uniforms.mouseY.value = 0.0;
+      uniforms.mouseX.value = 1.2;
+      uniforms.mouseY.value = -0.2;
     } else {
       const baseX = (mouseXNorm + 1) / 2;
       const baseY = (mouseYNorm + 1) / 2;
