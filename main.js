@@ -378,12 +378,16 @@ function init() {
       document.body.style.cursor = "grabbing";
     }
 
-    carouselItems.forEach((mesh) => {
-      const uniforms = mesh.userData?.uniforms;
-      if (uniforms?.parallaxStrength) {
-        animateUniform(uniforms.parallaxStrength, 0.06, 150);
-      }
-    });
+   if (!isTouchDevice) {
+    const targetStrength = isTouchDevice ? 1.2 : 0.06;
+  carouselItems.forEach((mesh) => {
+    const uniforms = mesh.userData?.uniforms;
+    if (uniforms?.parallaxStrength) {
+      animateUniform(uniforms.parallaxStrength, 0.06, 150);
+    }
+  });
+}
+
   });
 
   // TOUCH MOVE
@@ -428,8 +432,9 @@ function init() {
 
       setTimeout(() => {
         if (bestMatch?.userData?.uniforms?.parallaxStrength) {
-          animateUniform(bestMatch.userData.uniforms.parallaxStrength, 0.06, 300);
-        }
+    animateUniform(bestMatch.userData.uniforms.parallaxStrength, isTouchDevice ? 1.2 : 0.06, 300);
+}
+
       }, 20);
     }
   });
