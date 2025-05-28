@@ -56,7 +56,7 @@ function createParallaxMaterial(foregroundUrl, backgroundUrl, depthMapUrl, backg
 
     void main() {
       float depth = texture2D(depthMap, vUv).r;
-     float depthFactor = pow(1.0 - depth, 2.0); // Adjust exponent for more or less depth exaggeration
+     float depthFactor = pow(1.0 - depth, 5.0); // Adjust exponent for more or less depth exaggeration
       float offsetX = -(mouseX - 0.5) * 2.0 * parallaxStrength * depthFactor;
       float offsetY = (mouseY - 0.5) * 2.0 * parallaxStrength * depthFactor;
 
