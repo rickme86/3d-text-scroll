@@ -207,8 +207,10 @@ function init() {
   camera.lookAt(new THREE.Vector3(0, 0, -1));
 
   renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-  renderer.setSize(window.innerWidth, window.innerHeight);
-  document.body.appendChild(renderer.domElement);
+  const container = document.getElementById("carousel-container");
+  renderer.setSize(container.clientWidth, container.clientHeight);
+  container.appendChild(renderer.domElement);
+
 
   composer = new EffectComposer(renderer);
   composer.addPass(new RenderPass(scene, camera));
@@ -454,23 +456,22 @@ function init() {
 }
 
 function onWindowResize() {
-  camera.aspect = window.innerWidth / window.innerHeight;
+  const container = document.getElementById("carousel-container");
+  camera.aspect = container.clientWidth / container.clientHeight;
   camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
-  composer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setSize(container.clientWidth, container.clientHeight);
+  composer.setSize(container.clientWidth, container.clientHeight);
 
-  // Update carousel Z position responsively
-  if (carousel) {
-    const screenWidth = window.innerWidth;
-    if (screenWidth < 600) {
-      carousel.position.z = 3;
-    } else if (screenWidth < 1000) {
-      carousel.position.z = 5.0;
-    } else {
-      carousel.position.z = 8;
-    }
+  const screenWidth = container.clientWidth;
+  if (screenWidth < 600) {
+    carousel.position.z = 3;
+  } else if (screenWidth < 1000) {
+    carousel.position.z = 5.0;
+  } else {
+    carousel.position.z = 9;
   }
 }
+
 
 function animate() {
   requestAnimationFrame(animate);
