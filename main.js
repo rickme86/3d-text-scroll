@@ -232,20 +232,31 @@ function init() {
   const { radius, itemSize } = getResponsiveCarouselSettings();
 
   carousel = createCarouselMediaGroup({
-    imageUrls: ["/media/image1.jpg", "/media/image2.jpg", "/media/image3.jpg", "/media/image4.jpg"],
-    backgroundUrls: ["/media/image1_bg.png", "/media/image2_bg.png", "/media/image3_bg.png", "/media/image4.jpg"],
+    imageUrls: [
+      "/media/image1.png",
+      "/media/image2.png", 
+      "/media/image3.png",
+      "/media/image4.png"
+    ],
+    backgroundUrls: [
+      "/media/image1_bg.png",
+      "/media/image2_bg.png", 
+      "/media/image3_bg.png", 
+      "/media/image4_bg.png"
+    ],
     depthMapUrls: [
-      "/media/image1_depth.png",
-      "/media/image2_depth.png",
-      "/media/image3_depth.png",
-      "/media/image4_depth.png"
+      "/media/image1_fg_depth.png",
+      "/media/image2_fg_depth.png",
+      "/media/image3_fg_depth.png",
+      "/media/image4_fg_depth.png"
     ],
     backgroundDepthUrls: [
       "/media/image1_bgdepth.png",
-      "/media/image2_bgdepth.png", // ✅ your new map goes here
+      "/media/image2_bgdepth.png", 
       "/media/image3_bgdepth.png",
-      "/media/image4_depth.png"
+      "/media/image4_bgdepth.png"
     ],
+   
     videoUrls: [],
     itemSize,
     radius

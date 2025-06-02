@@ -1,36 +1,45 @@
+// Updated Parallax Shader with Separate Foreground Depth Map
 import * as THREE from "three";
 
-function createParallaxMaterial(foregroundUrl, backgroundUrl, depthMapUrl, backgroundDepthUrl) {
+function createParallaxMaterialWithAlpha(
+  foregroundUrl,
+  backgroundUrl,
+  foregroundDepthUrl,
+  backgroundDepthUrl
+) {
   const loader = new THREE.TextureLoader();
 
   const foreground = loader.load(foregroundUrl);
   const background = loader.load(backgroundUrl);
-  const depthMap = loader.load(depthMapUrl);
-  const backgroundDepthMap = backgroundDepthUrl ? loader.load(backgroundDepthUrl) : depthMap;
+  const foregroundDepthMap = loader.load(foregroundDepthUrl);
+  const backgroundDepthMap = backgroundDepthUrl
+    ? loader.load(backgroundDepthUrl)
+    : foregroundDepthMap;
 
-  depthMap.encoding = THREE.LinearEncoding;
-  depthMap.minFilter = THREE.LinearFilter;
-  depthMap.magFilter = THREE.LinearFilter;
-  depthMap.wrapS = THREE.ClampToEdgeWrapping;
-  depthMap.wrapT = THREE.ClampToEdgeWrapping;
+  // Set texture properties
+  [foreground, background].forEach((tex) => {
+    tex.encoding = THREE.sRGBEncoding;
+    tex.minFilter = THREE.LinearFilter;
+    tex.magFilter = THREE.LinearFilter;
+    tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
+  });
 
-  backgroundDepthMap.encoding = THREE.LinearEncoding;
-  backgroundDepthMap.minFilter = THREE.LinearFilter;
-  backgroundDepthMap.magFilter = THREE.LinearFilter;
-  backgroundDepthMap.wrapS = THREE.ClampToEdgeWrapping;
-  backgroundDepthMap.wrapT = THREE.ClampToEdgeWrapping;
+  [foregroundDepthMap, backgroundDepthMap].forEach((depth) => {
+    depth.encoding = THREE.LinearEncoding;
+    depth.minFilter = THREE.LinearFilter;
+    depth.magFilter = THREE.LinearFilter;
+    depth.wrapS = depth.wrapT = THREE.ClampToEdgeWrapping;
+  });
 
   const uniforms = {
     foreground: { value: foreground },
     background: { value: background },
-    depthMap: { value: depthMap },
+    foregroundDepthMap: { value: foregroundDepthMap },
     backgroundDepthMap: { value: backgroundDepthMap },
-    parallaxStrength: { value: window.innerWidth < 600 ? 0.5 : 0.03 },
+    parallaxStrength: { value: 0.03 },
     mouseX: { value: 0.5 },
     mouseY: { value: 0.5 },
     grayscale: { value: 0.0 },
-    bulgeFactor: { value: 0.0 }, // new
-
   };
 
   const vertexShader = `
@@ -44,33 +53,33 @@ function createParallaxMaterial(foregroundUrl, backgroundUrl, depthMapUrl, backg
   const fragmentShader = `
     uniform sampler2D foreground;
     uniform sampler2D background;
-    uniform sampler2D depthMap;
+    uniform sampler2D foregroundDepthMap;
+    uniform sampler2D backgroundDepthMap;
     uniform float parallaxStrength;
     uniform float mouseX;
     uniform float mouseY;
     uniform float grayscale;
-    uniform float bulgeFactor; 
-    
-    
+
     varying vec2 vUv;
 
     void main() {
-      float depth = texture2D(depthMap, vUv).r;
-     float depthFactor = pow(1.0 - depth, 5.0); // Adjust exponent for more or less depth exaggeration
-      float offsetX = -(mouseX - 0.5) * 2.0 * parallaxStrength * depthFactor;
-      float offsetY = (mouseY - 0.5) * 2.0 * parallaxStrength * depthFactor;
+      float fgDepth = texture2D(foregroundDepthMap, vUv).r;
+      float bgDepth = texture2D(backgroundDepthMap, vUv).r;
 
+      vec2 fgOffset = vec2(
+        -(mouseX - 0.5) * 2.0 * parallaxStrength * (1.0 - fgDepth),
+        (mouseY - 0.5) * 2.0 * parallaxStrength * (1.0 - fgDepth)
+      );
 
-      vec2 displacedUv = clamp(vUv + vec2(offsetX, offsetY), 0.0, 1.0);
+      vec2 bgOffset = vec2(
+        -(mouseX - 0.5) * 2.0 * parallaxStrength * (1.0 - bgDepth),
+        (mouseY - 0.5) * 2.0 * parallaxStrength * (1.0 - bgDepth)
+      );
 
+      vec4 bgColor = texture2D(background, clamp(vUv + bgOffset, 0.0, 1.0));
+      vec4 fgColor = texture2D(foreground, clamp(vUv + fgOffset, 0.0, 1.0));
 
-
-
-
-      vec4 bgColor = texture2D(background, displacedUv);
-      vec4 fgColor = texture2D(foreground, vUv);
-
-      float mask = step(0.6, depth);
+      float mask = fgColor.a;
       vec4 mixed = mix(bgColor, fgColor, mask);
 
       float gray = dot(mixed.rgb, vec3(0.299, 0.587, 0.114));
@@ -80,16 +89,18 @@ function createParallaxMaterial(foregroundUrl, backgroundUrl, depthMapUrl, backg
     }
   `;
 
-  const material = new THREE.ShaderMaterial({
+  return new THREE.ShaderMaterial({
     uniforms,
     vertexShader,
     fragmentShader,
     transparent: true,
   });
-
-  material.userData.shader = material;
-  return material;
 }
+
+export { createParallaxMaterialWithAlpha };
+
+
+
 
 function createGrayscaleMaterial(imageUrl) {
   const loader = new THREE.TextureLoader();
@@ -153,21 +164,13 @@ export function createCarouselMediaGroup({
   backgroundUrls = [],
   depthMapUrls = [],
   backgroundDepthUrls = [],
+  foregroundDepthUrls = [],
   videoUrls = [],
   radius = 65,
   itemSize
 }) {
   const group = new THREE.Group();
-  
-    const screenWidth = window.innerWidth;
-  if (screenWidth < 600) {
-    group.position.z = 3.0; // Mobile
-  } else if (screenWidth < 1000) {
-    group.position.z = 5.5; // Tablet
-  } else {
-    group.position.z = 8; // Desktop
-  }
-
+  group.position.z = 8;
 
   const baseItems = imageUrls.map((url, i) => ({
     type: 'image',
@@ -175,6 +178,7 @@ export function createCarouselMediaGroup({
     bgUrl: backgroundUrls[i],
     depthUrl: depthMapUrls[i],
     backgroundDepthUrl: backgroundDepthUrls[i],
+    foregroundDepthUrl: foregroundDepthUrls[i],
     index: i
   }))
   .concat(videoUrls.map((url) => ({
@@ -193,13 +197,15 @@ export function createCarouselMediaGroup({
     height: (arcLength / 16) * 9
   };
 
-  const createImageMesh = ({ imageUrl, bgUrl, depthUrl, backgroundDepthUrl }) => {
-    let material;
-    if (depthUrl && bgUrl) {
-      material = createParallaxMaterial(imageUrl, bgUrl, depthUrl, backgroundDepthUrl);
-    } else {
-      material = createGrayscaleMaterial(imageUrl);
-    }
+const createImageMesh = ({ imageUrl, bgUrl, depthUrl, backgroundDepthUrl, foregroundDepthUrl }) => {
+  let material;
+  if (depthUrl && bgUrl) {
+    material = createParallaxMaterialWithAlpha(imageUrl, bgUrl, depthUrl, backgroundDepthUrl, foregroundDepthUrl);
+  } else {
+    material = createGrayscaleMaterial(imageUrl);
+  }
+
+
 
     const segments = window.innerWidth < 600 ? 16 : window.innerWidth < 1000 ? 32 : 64;
     const geometry = new THREE.PlaneGeometry(itemSize.width, itemSize.height, segments, segments);
