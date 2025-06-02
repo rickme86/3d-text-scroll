@@ -464,9 +464,9 @@ function onWindowResize() {
 
   const screenWidth = container.clientWidth;
   if (screenWidth < 600) {
-    carousel.position.z = 3;
+    carousel.position.z = 5;
   } else if (screenWidth < 1000) {
-    carousel.position.z = 5.0;
+    carousel.position.z = 7.0;
   } else {
     carousel.position.z = 9;
   }
