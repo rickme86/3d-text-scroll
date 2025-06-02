@@ -30,12 +30,36 @@ let lastDragTime = 0;
 let lastFocusedItem = null;
 let lastDragDirection = 0; // -1 = right to left, 1 = left to right
 let isHoveringFocusedItem = false;
+let preferredFormat = "png";
 
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
 const isTouchDevice = "ontouchstart" in window || navigator.maxTouchPoints > 0;
+const textureLoader = new THREE.TextureLoader();
 
 init();
+
+function preloadTextures({ imageUrl, bgUrl, depthUrl, backgroundDepthUrl }) {
+  [imageUrl, bgUrl, depthUrl, backgroundDepthUrl].forEach(url => {
+    if (url) textureLoader.load(url, () => {
+      console.log("✅ Preloaded:", url);
+    });
+  });
+}
+
+function detectPreferredImageFormat() {
+  const canvas = document.createElement("canvas");
+
+  if (canvas.toDataURL("image/avif").indexOf("data:image/avif") === 0) {
+    preferredFormat = "avif";
+  } else if (canvas.toDataURL("image/webp").indexOf("data:image/webp") === 0) {
+    preferredFormat = "webp";
+  } else {
+    preferredFormat = "png";
+  }
+
+  console.log(`🖼 Preferred image format: ${preferredFormat}`);
+}
 
 function getFisheyeStrengthForScreen() {
   const width = window.innerWidth;
@@ -56,6 +80,14 @@ function getResponsiveCarouselSettings() {
     }
   };
 }
+
+
+function getResponsiveImagePath(baseName, suffix = "") {
+  const width = window.innerWidth;
+  const res = width < 600 ? "480" : width < 1000 ? "768" : "1080";
+  return `/media/${res}/${baseName}${suffix}_${res}.${preferredFormat}`;
+}
+
 
 function snapToNearestItem() {
   const TWO_PI = Math.PI * 2;
@@ -230,38 +262,32 @@ function init() {
   composer.addPass(fisheyePass);
 
   scene.add(new THREE.AmbientLight(0xffffff, 1));
+  
+  detectPreferredImageFormat();
+  const imageBaseNames = ["image1", "image2", "image3", "image4"];
+
+  const imageUrls = imageBaseNames.map(name => getResponsiveImagePath(name));
+  const backgroundUrls = imageBaseNames.map(name => getResponsiveImagePath(name, "_bg"));
+  const depthMapUrls = imageBaseNames.map(name => getResponsiveImagePath(name, "_fg_depth"));
+  const backgroundDepthUrls = imageBaseNames.map(name => getResponsiveImagePath(name, "_bg_depth"));
+  
+  console.log("Image 2 paths:");
+  console.log("Foreground:", getResponsiveImagePath("image2"));
+  console.log("Background:", getResponsiveImagePath("image2", "_bg"));
+  console.log("FG Depth:", getResponsiveImagePath("image2", "_fg_depth"));
+  console.log("BG Depth:", getResponsiveImagePath("image2", "_bgdepth"));
+
 
   const { radius, itemSize } = getResponsiveCarouselSettings();
 
   carousel = createCarouselMediaGroup({
-    imageUrls: [
-      "/media/image1.png",
-      "/media/image2.png", 
-      "/media/image3.png",
-      "/media/image4.png"
-    ],
-    backgroundUrls: [
-      "/media/image1_bg.png",
-      "/media/image2_bg.png", 
-      "/media/image3_bg.png", 
-      "/media/image4_bg.png"
-    ],
-    depthMapUrls: [
-      "/media/image1_fg_depth.png",
-      "/media/image2_fg_depth.png",
-      "/media/image3_fg_depth.png",
-      "/media/image4_fg_depth.png"
-    ],
-    backgroundDepthUrls: [
-      "/media/image1_bgdepth.png",
-      "/media/image2_bgdepth.png", 
-      "/media/image3_bgdepth.png",
-      "/media/image4_bgdepth.png"
-    ],
-   
-    videoUrls: [],
-    itemSize,
-    radius
+  imageUrls,
+  backgroundUrls,
+  depthMapUrls,
+  backgroundDepthUrls,
+  videoUrls: [],
+  itemSize,
+  radius
   });
 
   carousel.children.forEach((child) => {
@@ -290,7 +316,31 @@ function init() {
   });
 }
 
-  window.addEventListener("resize", onWindowResize);
+  let currentSizeClass = getCurrentSizeClass();
+let resizeTimeout = null;
+
+window.addEventListener("resize", () => {
+  clearTimeout(resizeTimeout);
+  resizeTimeout = setTimeout(() => {
+    const newClass = getCurrentSizeClass();
+    if (newClass !== currentSizeClass) {
+      console.log(`🔄 Reloading due to resolution tier change: ${currentSizeClass} → ${newClass}`);
+      location.reload(); // Trigger re-init with new image resolution
+    } else {
+      console.log("📐 Window resized, updating camera and renderer only");
+      onWindowResize(); // Only adjust renderer/camera
+    }
+  }, 250); // Debounce delay
+});
+
+function getCurrentSizeClass() {
+  const w = window.innerWidth;
+  if (w < 600) return "480";
+  if (w < 1000) return "768";
+  return "1080";
+}
+
+
 
   window.addEventListener("mousemove", (e) => {
     mouseXNorm = (e.clientX / window.innerWidth) * 2 - 1;
@@ -451,6 +501,15 @@ function init() {
       mouseYNorm = y * 2 - 1;
     }
   });
+  
+
+  function getCurrentSizeClass() {
+    const w = window.innerWidth;
+    if (w < 600) return "480";
+    if (w < 1000) return "768";
+    return "1080";
+}
+
 
   animate();
 }

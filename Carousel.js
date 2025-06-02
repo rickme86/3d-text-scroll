@@ -1,6 +1,16 @@
 // Updated Parallax Shader with Separate Foreground Depth Map
 import * as THREE from "three";
 
+const textureLoader = new THREE.TextureLoader();
+
+function preloadTextures({ imageUrl, bgUrl, depthUrl, backgroundDepthUrl }) {
+  [imageUrl, bgUrl, depthUrl, backgroundDepthUrl].forEach(url => {
+    if (url) textureLoader.load(url, () => {
+      console.log("✅ Preloaded:", url);
+    });
+  });
+}
+
 function createParallaxMaterialWithAlpha(
   foregroundUrl,
   backgroundUrl,
@@ -79,8 +89,8 @@ function createParallaxMaterialWithAlpha(
       vec4 bgColor = texture2D(background, clamp(vUv + bgOffset, 0.0, 1.0));
       vec4 fgColor = texture2D(foreground, clamp(vUv + fgOffset, 0.0, 1.0));
 
-      float mask = fgColor.a;
-      vec4 mixed = mix(bgColor, fgColor, mask);
+      float edgeFade = smoothstep(0.0, 0.05, fgColor.a); // feather edges
+      vec4 mixed = mix(bgColor, fgColor, edgeFade);
 
       float gray = dot(mixed.rgb, vec3(0.299, 0.587, 0.114));
       vec3 finalColor = mix(vec3(gray), mixed.rgb, 1.0 - grayscale);
@@ -188,7 +198,6 @@ export function createCarouselMediaGroup({
 
   const items = [...baseItems, ...baseItems, ...baseItems];
   const total = items.length;
-
   const angleStep = (2 * Math.PI) / total;
   const arcLength = radius * angleStep * 1.1;
 
@@ -197,10 +206,10 @@ export function createCarouselMediaGroup({
     height: (arcLength / 16) * 9
   };
 
-const createImageMesh = ({ imageUrl, bgUrl, depthUrl, backgroundDepthUrl, foregroundDepthUrl }) => {
+const createImageMesh = ({ imageUrl, bgUrl, depthUrl, backgroundDepthUrl }) => {
   let material;
   if (depthUrl && bgUrl) {
-    material = createParallaxMaterialWithAlpha(imageUrl, bgUrl, depthUrl, backgroundDepthUrl, foregroundDepthUrl);
+    material = createParallaxMaterialWithAlpha(imageUrl, bgUrl, depthUrl, backgroundDepthUrl);
   } else {
     material = createGrayscaleMaterial(imageUrl);
   }
