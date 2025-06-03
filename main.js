@@ -144,8 +144,8 @@ function animateSnap(start, end, duration = 0.6, onComplete) {
 }
 
 function applyMomentumAndSnap() {
-  const friction = 0.9;
-  const velocityThreshold = 0.0003;
+  const friction = 0.85;
+  const velocityThreshold = 0.0006;
 
   isSnapping = true;
   disableMouseTilt = true;
@@ -230,6 +230,23 @@ function springToUniform(uniform, target, stiffness = 0.2, damping = 0.7) {
   uniform.spring.velocity = uniform.spring.velocity * damping + delta * stiffness;
   uniform.value += uniform.spring.velocity;
 }
+
+function animateScale(object, targetScale, duration = 200) {
+  const start = object.scale.clone();
+  const end = new THREE.Vector3(targetScale, targetScale, targetScale);
+  const startTime = performance.now();
+
+  function step() {
+    const now = performance.now();
+    const t = Math.min((now - startTime) / duration, 1);
+    const eased = 1 - Math.pow(1 - t, 3);
+    object.scale.lerpVectors(start, end, eased);
+    if (t < 1) requestAnimationFrame(step);
+  }
+
+  requestAnimationFrame(step);
+}
+
 
 function init() {
   scene = new THREE.Scene();
@@ -416,7 +433,9 @@ function getCurrentSizeClass() {
       dragOffsetX = deltaX / 100;
       dragOffsetY = (e.movementY || 0) / 100;
 
-      targetRotation += deltaX * 0.005;
+      const dragScale = window.innerWidth < 600 ? 0.008 : 0.005;
+      targetRotation += deltaX * dragScale;
+
 
       lastDragX = e.clientX;
       lastDragTime = now;
@@ -435,11 +454,23 @@ function getCurrentSizeClass() {
     lastDragX = e.touches[0].clientX;
     dragVelocity = 0;
     lastDragTime = performance.now();
+    
+    if (bestMatch?.scale) {
+    animateScale(bestMatch, 1.06, 200);
+    setTimeout(() => animateScale(bestMatch, 1, 300), 200);
+    } 
+
 
     if (isHoveringFocusedItem) {
       document.body.style.cursor = "grabbing";
     }
-
+    
+    if (bestMatch?.scale) {
+  bestMatch.scale.set(1.06, 1.06, 1.06);
+  setTimeout(() => {
+    bestMatch.scale.set(1, 1, 1);
+  }, 200);
+}
   });
 
   // TOUCH MOVE
@@ -514,6 +545,15 @@ function getCurrentSizeClass() {
     console.log("⏱ Triggering delayed resize to fix mobile black screen.");
     onWindowResize();
   }, 100);
+  
+  document.getElementById("carousel-container").addEventListener(
+  "touchmove",
+  (e) => {
+    if (isDragging) e.preventDefault();
+  },
+  { passive: false }
+);
+
 
   animate();
 }
@@ -613,12 +653,15 @@ if (bestMatch?.userData?.uniforms) {
     }
   });
 
-  if (isTouchDevice && !isDragging && bestMatch?.userData?.uniforms) {
-    const uniforms = bestMatch.userData.uniforms;
-    const t = performance.now() * 0.001;
-    uniforms.mouseX.value = 0.5 + 0.05 * Math.sin(t);
-    uniforms.mouseY.value = 0.5 + 0.05 * Math.cos(t * 0.8);
-  }
+if (isTouchDevice && !isDragging && bestMatch?.userData?.uniforms) {
+  const uniforms = bestMatch.userData.uniforms;
+  const t = performance.now() * 0.001;
+
+  const offsetScale = 0.08 + 0.02 * Math.sin(t * 0.5); // small variance
+  uniforms.mouseX.value = 0.5 + offsetScale * Math.sin(t * 0.9);
+  uniforms.mouseY.value = 0.5 + offsetScale * Math.cos(t * 0.7);
+}
+
 
   composer.render();
 }
