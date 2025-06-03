@@ -296,7 +296,7 @@ function init() {
 
 
   const { radius, itemSize } = getResponsiveCarouselSettings();
-
+  
   carousel = createCarouselMediaGroup({
   imageUrls,
   backgroundUrls,
@@ -532,14 +532,6 @@ function getCurrentSizeClass() {
       mouseYNorm = y * 2 - 1;
     }
   });
-  
-
-  function getCurrentSizeClass() {
-    const w = window.innerWidth;
-    if (w < 600) return "480";
-    if (w < 1000) return "768";
-    return "1080";
-}
   
  setTimeout(() => {
     console.log("⏱ Triggering delayed resize to fix mobile black screen.");
