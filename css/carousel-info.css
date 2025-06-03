@@ -27,6 +27,8 @@
 }
 
 
+
+
 #carousel-info {
   position: fixed;
   top: 40%;
@@ -126,3 +128,50 @@
   background: white;
   color: black;
 }
+
+@media (max-width: 600px) {
+  /* Overall layout */
+  #carousel-info {
+    left: 5%;
+    top: 50%;
+    transform: translateY(-50%);
+    max-width: 90vw;
+  }
+
+  /* Reduce spacing in meta block */
+  .project-meta {
+    gap: 0.5em;
+  }
+
+  /* Project number */
+  .project-number {
+    font-size: 2.5em;
+    letter-spacing: 0.05em;
+    margin-bottom: 1em;
+  }
+
+  /* Category and title block */
+  .project-title-group {
+    gap: 0.2em;
+  }
+
+  .project-category {
+    font-size: 0.9em;
+    opacity: 0.8;
+  }
+
+  .project-title {
+    font-size: 3.5em;
+    word-break: break-word;
+    line-height: 1.1;
+  }
+
+  /* Button */
+  .project-button {
+    font-size: 0.9em;
+    padding: 0.4em 1em;
+    margin-top: 1.5em;
+    border-width: 1px;
+  }
+}
+
