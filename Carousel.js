@@ -86,11 +86,20 @@ function createParallaxMaterialWithAlpha(
         (mouseY - 0.5) * 2.0 * parallaxStrength * (1.0 - bgDepth)
       );
 
-      vec4 bgColor = texture2D(background, clamp(vUv + bgOffset, 0.0, 1.0));
-      vec4 fgColor = texture2D(foreground, clamp(vUv + fgOffset, 0.0, 1.0));
+      vec2 fgUV = clamp(vUv + fgOffset, 0.0, 1.0);
+vec2 bgUV = clamp(vUv + bgOffset, 0.0, 1.0);
 
-      float edgeFade = smoothstep(0.0, 0.05, fgColor.a); // feather edges
-      vec4 mixed = mix(bgColor, fgColor, edgeFade);
+vec4 fgColor = texture2D(foreground, fgUV);
+vec4 bgColor = texture2D(background, bgUV);
+
+// Fade alpha near UV bounds to avoid hard edges
+float edgeFade = smoothstep(0.02, 0.1, fgUV.x) *
+                 smoothstep(0.02, 0.1, fgUV.y) *
+                 smoothstep(0.98, 0.9, fgUV.x) *
+                 smoothstep(0.98, 0.9, fgUV.y);
+
+vec4 mixed = mix(bgColor, fgColor, fgColor.a * edgeFade);
+
 
       float gray = dot(mixed.rgb, vec3(0.299, 0.587, 0.114));
       vec3 finalColor = mix(vec3(gray), mixed.rgb, 1.0 - grayscale);
