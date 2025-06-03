@@ -86,9 +86,7 @@ function createParallaxMaterialWithAlpha(
         (mouseY - 0.5) * 2.0 * parallaxStrength * (1.0 - bgDepth)
       );
 
-     vec2 stretchedUV = mix(vec2(0.5), vUv + bgOffset, 0.95); // pull toward center
-vec4 bgColor = texture2D(background, clamp(stretchedUV, 0.0, 1.0));
-
+      vec4 bgColor = texture2D(background, clamp(vUv + bgOffset, 0.0, 1.0));
       vec4 fgColor = texture2D(foreground, clamp(vUv + fgOffset, 0.0, 1.0));
 
       float edgeFade = smoothstep(0.0, 0.05, fgColor.a); // feather edges

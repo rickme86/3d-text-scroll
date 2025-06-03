@@ -31,6 +31,15 @@ let lastFocusedItem = null;
 let lastDragDirection = 0; // -1 = right to left, 1 = left to right
 let isHoveringFocusedItem = false;
 let preferredFormat = "png";
+let lastDisplayedTitle = null;
+
+
+ const projectMeta = [
+  { title: "DECADE", category: "3D animation", link: "/projects/01" },
+  { title: "RISE", category: "Experimental", link: "/projects/02" },
+  { title: "ORBIT", category: "Concept Art", link: "/projects/03" },
+  { title: "NOVA", category: "Game Design", link: "/projects/04" }
+];
 
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
@@ -288,6 +297,7 @@ function init() {
   const depthMapUrls = imageBaseNames.map(name => getResponsiveImagePath(name, "_fg_depth"));
   const backgroundDepthUrls = imageBaseNames.map(name => getResponsiveImagePath(name, "_bg_depth"));
   
+  
   console.log("Image 2 paths:");
   console.log("Foreground:", getResponsiveImagePath("image2"));
   console.log("Background:", getResponsiveImagePath("image2", "_bg"));
@@ -306,6 +316,12 @@ function init() {
   itemSize,
   radius
   });
+  
+  carousel.children.forEach((child, i) => {
+  const index = i % projectMeta.length;
+  child.userData.project = projectMeta[index];
+});
+
 
   carousel.children.forEach((child) => {
     const pos = new THREE.Vector3();
@@ -633,6 +649,33 @@ if (bestMatch?.userData?.uniforms) {
     }
 
     lastFocusedItem = bestMatch;
+    
+    const project = bestMatch.userData?.project;
+  if (project) {
+  const index = (carouselItems.indexOf(bestMatch) % projectMeta.length) + 1;
+  document.getElementById("project-index").textContent = index.toString().padStart(2, "0");
+        
+ const titleEl = document.getElementById("project-title");
+
+      if (lastDisplayedTitle !== project.title) {
+        lastDisplayedTitle = project.title;
+
+        // Clear old content
+        titleEl.innerHTML = "";
+
+        // Add spans for each character
+        [...project.title].forEach((char, i) => {
+          const span = document.createElement("span");
+          span.textContent = char;
+          span.style.animationDelay = `${i * 50}ms`;
+          titleEl.appendChild(span);
+        });
+      }
+
+  document.getElementById("project-category").textContent = project.category;
+  document.getElementById("project-button").href = project.link;
+}
+
   }
 
   // Set grayscale based on focus
