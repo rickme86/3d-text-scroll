@@ -509,7 +509,11 @@ function getCurrentSizeClass() {
     if (w < 1000) return "768";
     return "1080";
 }
-
+  
+ setTimeout(() => {
+    console.log("⏱ Triggering delayed resize to fix mobile black screen.");
+    onWindowResize();
+  }, 100);
 
   animate();
 }
