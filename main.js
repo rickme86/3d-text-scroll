@@ -609,13 +609,14 @@ if (bestMatch?.userData?.uniforms) {
       const baseX = (mouseXNorm + 1) / 2;
       const baseY = (mouseYNorm + 1) / 2;
 
-      if (isDragging) {
+          if (isDragging && !isTouchDevice) {
         uniforms.mouseX.value = THREE.MathUtils.clamp(baseX + dragOffsetX, 0, 1);
         uniforms.mouseY.value = THREE.MathUtils.clamp(baseY + dragOffsetY, 0, 1);
       } else {
         uniforms.mouseX.value = baseX;
         uniforms.mouseY.value = baseY;
       }
+
     }
   }
 }
