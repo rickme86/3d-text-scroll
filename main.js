@@ -46,6 +46,17 @@ const mouse = new THREE.Vector2();
 const isTouchDevice = "ontouchstart" in window || navigator.maxTouchPoints > 0;
 const textureLoader = new THREE.TextureLoader();
 
+function setParallaxStrengthForAll(meshes, strength) {
+  meshes.forEach(mesh => {
+    const uniforms = mesh.userData?.uniforms;
+    if (uniforms?.parallaxStrength) {
+      uniforms.parallaxStrength.value = strength;
+    }
+  });
+}
+
+const FIXED_PARALLAX_STRENGTH = 0.03;
+
 init();
 
 function preloadTextures({ imageUrl, bgUrl, depthUrl, backgroundDepthUrl }) {
@@ -191,9 +202,11 @@ function animateParallaxSweep(uniforms, direction = 1, duration = 600) {
 
   const originalStrength = uniforms.parallaxStrength?.value ?? 0.03;
   if (uniforms.parallaxStrength) {
-    animateUniform(uniforms.parallaxStrength, 0.12, duration / 2); // Boost
+    setParallaxStrengthForAll(carouselItems, FIXED_PARALLAX_STRENGTH);
+ // Boost
     setTimeout(() => {
-      animateUniform(uniforms.parallaxStrength, originalStrength, duration / 2); // Restore
+      setParallaxStrengthForAll(carouselItems, FIXED_PARALLAX_STRENGTH);
+ // Restore
     }, duration / 2);
   }
 
@@ -344,7 +357,7 @@ function init() {
   carouselItems.forEach(mesh => {
     const uniforms = mesh.userData?.uniforms;
     if (uniforms?.parallaxStrength) {
-      uniforms.parallaxStrength.value = 0.5; // or higher (e.g., 0.08)
+      setParallaxStrengthForAll(carouselItems, FIXED_PARALLAX_STRENGTH);
     }
   });
 }
@@ -414,7 +427,7 @@ function getCurrentSizeClass() {
     carouselItems.forEach((mesh) => {
       const uniforms = mesh.userData?.uniforms;
       if (uniforms?.parallaxStrength) {
-        animateUniform(uniforms.parallaxStrength, 0.06, 150);
+        setParallaxStrengthForAll(carouselItems, FIXED_PARALLAX_STRENGTH);
       }
     });
   });
@@ -431,7 +444,7 @@ function getCurrentSizeClass() {
       // Delay to ensure bestMatch has updated
       setTimeout(() => {
         if (bestMatch?.userData?.uniforms?.parallaxStrength) {
-          animateUniform(bestMatch.userData.uniforms.parallaxStrength, 0.06, 300);
+          setParallaxStrengthForAll(carouselItems, FIXED_PARALLAX_STRENGTH);
         }
       }, 20); // ~1 frame delay
     }
@@ -450,8 +463,7 @@ function getCurrentSizeClass() {
       dragOffsetY = (e.movementY || 0) / 100;
 
       const dragScale = window.innerWidth < 600 ? 0.008 : 0.005;
-      targetRotation += deltaX * dragScale;
-
+      targetRotation -= deltaX * dragScale;
 
       lastDragX = e.clientX;
       lastDragTime = now;
@@ -508,7 +520,7 @@ function getCurrentSizeClass() {
       dragOffsetX = deltaX / 100;
       dragOffsetY = 0;
 
-      targetRotation += deltaX * 0.005;
+      targetRotation -= deltaX * 0.005;
       lastDragX = currentX;
       lastDragTime = now;
 
@@ -531,7 +543,8 @@ function getCurrentSizeClass() {
 
       setTimeout(() => {
         if (bestMatch?.userData?.uniforms?.parallaxStrength) {
-    animateUniform(bestMatch.userData.uniforms.parallaxStrength, isTouchDevice ? 0.4 : 0.06, 300);
+            setParallaxStrengthForAll(carouselItems, FIXED_PARALLAX_STRENGTH);
+
 }
 
       }, 20);
