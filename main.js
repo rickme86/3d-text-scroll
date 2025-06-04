@@ -164,20 +164,33 @@ function animateSnap(start, end, duration = 0.6, onComplete) {
 }
 
 function applyMomentumAndSnap() {
-  const friction = 0.85;
-  const velocityThreshold = 0.0006;
+  const friction = 0.92; // slows gradually
+  const minSpinDuration = 500; // ms
+  const velocityBoost = 0.008; // optional base velocity
+  let startTime = performance.now();
 
   isSnapping = true;
   disableMouseTilt = true;
 
-  function momentumStep() {
-    if (Math.abs(dragVelocity) > velocityThreshold && !isDragging) {
-      const maxRotationPerFrame = 0.03;
-      if (dragVelocity > maxRotationPerFrame) dragVelocity = maxRotationPerFrame;
-      if (dragVelocity < -maxRotationPerFrame) dragVelocity = -maxRotationPerFrame;
+  // Boost if velocity is too low
+  if (Math.abs(dragVelocity) < 0.002) {
+    dragVelocity += lastDragDirection * velocityBoost;
+  }
 
-      targetRotation += dragVelocity;
-      dragVelocity *= friction;
+  function momentumStep() {
+    const now = performance.now();
+    const elapsed = now - startTime;
+
+    // Apply rotation
+    targetRotation += dragVelocity;
+
+    // Decay velocity
+    dragVelocity *= friction;
+
+    // Keep spinning for min duration or until very slow
+    const stillSpinning = elapsed < minSpinDuration || Math.abs(dragVelocity) > 0.0005;
+
+    if (stillSpinning) {
       requestAnimationFrame(momentumStep);
     } else {
       snapToNearestItem();
@@ -188,6 +201,7 @@ function applyMomentumAndSnap() {
 
   momentumStep();
 }
+
 
 function smoothDeadZone(value, deadZone) {
   if (Math.abs(value) <= deadZone) return 0;
