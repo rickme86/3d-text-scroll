@@ -32,6 +32,7 @@ let lastDragDirection = 0; // -1 = right to left, 1 = left to right
 let isHoveringFocusedItem = false;
 let preferredFormat = "png";
 let lastDisplayedTitle = null;
+let currentTiltOffset = 0;
 
 
  const projectMeta = [
@@ -111,7 +112,7 @@ function getResponsiveImagePath(baseName, suffix = "") {
 
 function snapToNearestItem() {
   const TWO_PI = Math.PI * 2;
-  const rotation = targetRotation;
+  const rotation = currentRotation;
 
   let nearestAngle = carouselItems[0].userData.originalAngle;
   let minDistance = Infinity;
@@ -139,12 +140,14 @@ function animateSnap(start, end, duration = 0.6, onComplete) {
     if (!startTime) startTime = timestamp;
     const elapsed = (timestamp - startTime) / 1000;
     const t = Math.min(elapsed / duration, 1);
-    const eased = 1 - Math.pow(1 - t, 3);
+    const eased = t * t * (3 - 2 * t); // smoothstep
+
+
 
     targetRotation = start + (end - start) * eased;
 
     if (!isDragging) {
-      currentRotation += (targetRotation - currentRotation) * 0.15;
+      currentRotation += (targetRotation - currentRotation) * 0.3;
       carousel.rotation.y = currentRotation;
     }
 
@@ -164,15 +167,15 @@ function animateSnap(start, end, duration = 0.6, onComplete) {
 }
 
 function applyMomentumAndSnap() {
-  const friction = 0.92; // slows gradually
-  const minSpinDuration = 500; // ms
-  const velocityBoost = 0.008; // optional base velocity
-  let startTime = performance.now();
+  const friction = 0.92;
+  const minSpinDuration = 500; // Minimum spin time (ms)
+  const velocityBoost = 0.008;
+  const startTime = performance.now();
 
   isSnapping = true;
   disableMouseTilt = true;
 
-  // Boost if velocity is too low
+  // Ensure visible motion even for small drags
   if (Math.abs(dragVelocity) < 0.002) {
     dragVelocity += lastDragDirection * velocityBoost;
   }
@@ -181,26 +184,27 @@ function applyMomentumAndSnap() {
     const now = performance.now();
     const elapsed = now - startTime;
 
-    // Apply rotation
-    targetRotation += dragVelocity;
+    // Drive actual rotation visually
+    currentRotation += dragVelocity;
+    carousel.rotation.y = currentRotation;
 
     // Decay velocity
     dragVelocity *= friction;
 
-    // Keep spinning for min duration or until very slow
-    const stillSpinning = elapsed < minSpinDuration || Math.abs(dragVelocity) > 0.0005;
+    const spinning = elapsed < minSpinDuration || Math.abs(dragVelocity) > 0.0005;
 
-    if (stillSpinning) {
+    if (spinning) {
       requestAnimationFrame(momentumStep);
     } else {
-      snapToNearestItem();
-      disableMouseTilt = false;
+      snapToNearestItem(); // Based on currentRotation!
       isSnapping = false;
+      disableMouseTilt = false;
     }
   }
 
   momentumStep();
 }
+
 
 
 function smoothDeadZone(value, deadZone) {
@@ -617,12 +621,16 @@ function animate() {
   currentRotation += (targetRotation - currentRotation) * 0.15;
 
   // Conditional tilt
-  let tiltOffset = 0;
-  if (!isHoveringFocusedItem && !disableMouseTilt) {
-    const smoothedMouseX = smoothDeadZone(mouseXNorm, 0.1); // deadZone was missing here
-    tiltOffset = smoothedMouseX * maxMouseOffset;
-  }
-  carousel.rotation.y = currentRotation + tiltOffset;
+let targetTiltOffset = 0;
+if (!isHoveringFocusedItem && !disableMouseTilt) {
+  const smoothedMouseX = smoothDeadZone(mouseXNorm, 0.1);
+  targetTiltOffset = smoothedMouseX * maxMouseOffset;
+}
+
+// Smooth interpolation (easing)
+currentTiltOffset += (targetTiltOffset - currentTiltOffset) * 0.1;
+carousel.rotation.y = currentRotation + currentTiltOffset;
+
 
 if (bestMatch?.userData?.uniforms) {
   const uniforms = bestMatch.userData.uniforms;
@@ -647,6 +655,17 @@ if (bestMatch?.userData?.uniforms) {
     }
   }
 }
+  
+carouselItems.forEach((mesh) => {
+  if (mesh === bestMatch) return;
+
+  const uniforms = mesh.userData?.uniforms;
+  if (!uniforms || !("mouseX" in uniforms) || !("mouseY" in uniforms)) return;
+
+  uniforms.mouseX.value += (0.5 - uniforms.mouseX.value) * 0.075;
+  uniforms.mouseY.value += (0.5 - uniforms.mouseY.value) * 0.075;
+});
+
 
 
   // Determine focused item
