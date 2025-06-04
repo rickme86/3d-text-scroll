@@ -641,8 +641,19 @@ if (bestMatch?.userData?.uniforms) {
       uniforms.mouseX.value = 1.2;
       uniforms.mouseY.value = -0.2;
     } else {
-      const baseX = (mouseXNorm + 1) / 2;
-      const baseY = (mouseYNorm + 1) / 2;
+    const baseX = (mouseXNorm + 1) / 2;
+    const baseY = (mouseYNorm + 1) / 2;
+
+    const isSmallTouchDevice = isTouchDevice && window.innerWidth < 500;
+    const parallaxMultiplier = isSmallTouchDevice ? 2.0 : isTouchDevice ? 1.5 : 1;
+
+
+      // Optional clamp to keep values in range
+      const boostedX = THREE.MathUtils.clamp((baseX - 0.5) * parallaxMultiplier + 0.5, 0, 1);
+      const boostedY = THREE.MathUtils.clamp((baseY - 0.5) * parallaxMultiplier + 0.5, 0, 1);
+
+      uniforms.mouseX.value += (boostedX - uniforms.mouseX.value) * 0.075;
+      uniforms.mouseY.value += (boostedY - uniforms.mouseY.value) * 0.075;
 
           if (isDragging && !isTouchDevice) {
         uniforms.mouseX.value = THREE.MathUtils.clamp(baseX + dragOffsetX, 0, 1);
