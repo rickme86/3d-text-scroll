@@ -56,7 +56,7 @@ function setParallaxStrengthForAll(meshes, strength) {
   });
 }
 
-const FIXED_PARALLAX_STRENGTH = isTouchDevice ? 0.08 : 0.06;
+const FIXED_PARALLAX_STRENGTH = isTouchDevice ? 0.08 : 0.09;
 
 
 init();
