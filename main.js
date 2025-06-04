@@ -56,7 +56,7 @@ function setParallaxStrengthForAll(meshes, strength) {
   });
 }
 
-const FIXED_PARALLAX_STRENGTH = isTouchDevice ? 0.08 : 0.5;
+const FIXED_PARALLAX_STRENGTH = isTouchDevice ? 0.08 : 0.03;
 
 
 init();
@@ -751,7 +751,7 @@ if (isTouchDevice && !isDragging && bestMatch?.userData?.uniforms) {
   const uniforms = bestMatch.userData.uniforms;
   const t = performance.now() * 0.001;
 
-  const offsetScale = 0.1 + 0.02 * Math.sin(t * 0.5); // small variance
+  const offsetScale = 0.08 + 0.02 * Math.sin(t * 0.5); // small variance
   uniforms.mouseX.value = 0.5 + offsetScale * Math.sin(t * 0.9);
   uniforms.mouseY.value = 0.5 + offsetScale * Math.cos(t * 0.7);
 }
